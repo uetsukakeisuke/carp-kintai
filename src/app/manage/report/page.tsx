@@ -31,10 +31,10 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         {rows.length ? <a className="btn primary" href={`/api/report?ym=${ym}`}>給与報告フォーム（Excel）を出力</a> : <span className="btn" aria-disabled="true">この月の勤務実績はまだありません</span>}
       </div>
       {warnings.length > 0 && <div className="banner warn"><span><b>退勤の打刻がない勤務が{warnings.length}件あり、報告から除いています。</b>　「勤怠実績」で修正申請を承認してから出力してください：{warnings.slice(0, 6).map((w) => `${w.name} ${dateLabel(w.date)}`).join('、')}{warnings.length > 6 ? ' ほか' : ''}</span></div>}
-      <div className="grid-wrap"><table className="tbl stack" style={{ minWidth: 820 }}>
+      <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 820 }}>
         <thead><tr><th>所属</th><th>氏名</th><th>出勤日数</th><th>勤務時間</th><th>残業時間</th><th>時給</th><th>深夜手当</th><th>通勤手当日額</th><th>総支給額（見込み）</th></tr></thead>
         <tbody>
-          {rows.map((r, i) => <tr key={i}><td data-label="所属">{r.store}</td><td className="head"><b>{r.name}</b></td><td data-label="出勤日数" className="num">{r.days}日</td><td data-label="勤務時間" className="num">{hm(r.regularMin)}</td><td data-label="残業時間" className={`num${r.overtimeMin ? '' : ' hide-sp'}`}>{r.overtimeMin ? hm(r.overtimeMin) : '—'}</td><td data-label="時給" className="num">{yen(r.hourly)}</td><td data-label="深夜手当" className={`num${r.nightPay ? '' : ' hide-sp'}`}>{r.nightPay ? yen(r.nightPay) : '—'}</td><td data-label="通勤手当日額" className={`num${r.transport ? '' : ' hide-sp'}`}>{r.transport ? yen(r.transport) : '—'}</td><td data-label="総支給額（見込み）" className="num"><b>{yen(reportGross(r))}</b></td></tr>)}
+          {rows.map((r, i) => <tr key={i}><td data-label="所属" className="pc-only">{r.store}</td><td className="head"><b>{r.name}</b></td><td data-label="出勤日数" className="num">{r.days}日</td><td data-label="勤務時間" className="num">{hm(r.regularMin)}</td><td data-label="残業時間" className={`num${r.overtimeMin ? '' : ' hide-sp'}`}>{r.overtimeMin ? hm(r.overtimeMin) : '—'}</td><td data-label="時給" className="num">{yen(r.hourly)}</td><td data-label="深夜手当" className={`num${r.nightPay ? '' : ' hide-sp'}`}>{r.nightPay ? yen(r.nightPay) : '—'}</td><td data-label="通勤手当日額" className={`num${r.transport ? '' : ' hide-sp'}`}>{r.transport ? yen(r.transport) : '—'}</td><td data-label="総支給額（見込み）" className="num amt"><b>{yen(reportGross(r))}</b></td></tr>)}
           {!rows.length && <tr><td colSpan={9} className="sub">この月の勤務実績はまだありません</td></tr>}
         </tbody>
       </table></div>

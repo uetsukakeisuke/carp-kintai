@@ -34,7 +34,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
         store={{ id: store.id, name: store.name, budget: [store.budget_weekday, store.budget_friday, store.budget_weekend] }}
         year={y} month={m}
         status={b.period?.status ?? 'draft'}
-        staff={b.staff.map((s) => ({ id: s.id, name: s.name, employment: s.employment, transport: s.transport_per_day }))}
+        staff={b.staff.map((s) => ({ id: s.id, name: s.name, employment: s.employment, transport: s.transport_per_day, monthly: s.pay_type === 'monthly' }))}
         rates={b.rates}
         minWages={b.minWages}
         drafts={b.drafts}

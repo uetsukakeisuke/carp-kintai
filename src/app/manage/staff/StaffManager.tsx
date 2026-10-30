@@ -51,7 +51,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
         <button className="btn primary" onClick={() => { setErr(''); setEdit({ id: null, name: '', kana: '', storeId: stores[0]?.id ?? null, employment: 'ﾊﾟｰﾄ', transport: 0, commuteMeans: '電車', hourly: minWage.next && today >= minWage.next.effective_from ? minWage.next.hourly : Math.max(minWage.now, 1200), wageFrom: today, active: true, role: 'staff' }); }}>スタッフを追加</button>
         <Link className="btn ghost" href={showAll ? '/manage/staff' : '/manage/staff?all=1'}>{showAll ? '在籍中だけ表示' : '退職者も表示'}</Link>
       </div>
-      <div className="grid-wrap"><table className="tbl stack" style={{ minWidth: 820 }}>
+      <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 820 }}>
         <thead><tr><th>スタッフ</th><th>所属</th><th>権限</th><th>現在の時給</th><th>予定の改定</th><th>交通費／日</th><th>ログイン</th><th></th></tr></thead>
         <tbody>
           {staff.map((s) => (
@@ -59,9 +59,9 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
               <td className="head"><b>{s.name}</b>{!s.active && <span className="flag">退職</span>}<span className="sub" style={{ marginLeft: 8 }}>{s.employment}</span></td>
               <td data-label="所属"><span>{storeName(s.storeId)}<span className="sub sp-only" style={{ marginLeft: 6 }}>（{ROLE[s.role]}）</span></span></td>
               <td data-label="権限" className="hide-sp">{ROLE[s.role]}</td>
-              <td data-label="現在の時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
-              <td data-label="予定の改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
-              <td data-label="交通費／日" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
+              <td data-label="時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
+              <td data-label="改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
+              <td data-label="交通費" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
               <td data-label="ログイン" className={s.role === 'staff' ? 'hide-sp' : ''}>{s.role === 'staff' ? <span className="sub">名前だけ</span> : s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">パスワード設定済み</span>}</td>
               <td className="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {s.payType === 'hourly' && <button className="btn" onClick={() => { setErr(''); setWage({ s, from: today, hourly: s.wage ?? minWage.now }); }}>時給</button>}{' '}

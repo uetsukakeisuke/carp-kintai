@@ -75,17 +75,17 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         <div className="card"><div className="k">退勤の打刻なし</div><div className={`mid num ${rows.some((r) => r.sum.state === 'missing') ? 'bad-t' : 'ok-t'}`}>{rows.filter((r) => r.sum.state === 'missing').length}件</div></div>
         <div className="card"><div className="k">未出勤</div><div className={`mid num ${rows.some((r) => r.sum.state === 'absent') ? 'warn-t' : 'ok-t'}`}>{rows.filter((r) => r.sum.state === 'absent').length}人</div></div>
       </section>
-      <div className="grid-wrap"><table className="tbl stack" style={{ minWidth: 760 }}>
+      <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 760 }}>
         <thead><tr><th>スタッフ</th><th>予定</th><th>打刻</th><th>休憩</th><th>実働</th><th>状態</th><th>人件費</th></tr></thead>
         <tbody>
           {rows.map(({ s, ps, sh, sum, cost, flags }) => (
             <tr key={s.id}>
               <td className="head"><b>{s.name}</b></td>
               <td data-label="予定" className="num">{sh ? `${hm(sh.start_min)}〜${hm(sh.end_min)}` : '—'}</td>
-              <td data-label="打刻" className="wrap"><span style={{ marginLeft: 'auto' }}><PunchLog punches={ps} /></span></td>
+              <td data-label="打刻" className="wrap full"><span style={{ marginLeft: 'auto' }}><PunchLog punches={ps} /></span></td>
               <td data-label="休憩" className={`num${sum.breakMin ? '' : ' hide-sp'}`}>{sum.breakMin ? `${sum.breakMin}分` : '—'}</td>
               <td data-label="実働" className={`num${sum.firstIn !== null ? '' : ' hide-sp'}`}>{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>
-              <td data-label="状態" className="wrap"><span style={{ marginLeft: 'auto' }}><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</span></td>
+              <td data-label="状態" className="wrap amt"><span style={{ marginLeft: 'auto' }}><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</span></td>
               <td data-label="人件費" className={`num${cost ? '' : ' hide-sp'}`}>{cost ? yen(cost) : '—'}</td>
             </tr>
           ))}

@@ -481,3 +481,108 @@ tfoot td.hp-f.ok { color: var(--ok) }
   .hp-dates b { font-size: 15px }
 }
 .savestate { font-size: 12px; color: var(--warn); font-weight: 600 } .savestate.ok { color: var(--ok) }
+
+/* ===== 表示切り替え（PC／スマホ） ===== */
+.only-sp { display: none }
+@media (max-width: 760px) { .only-sp { display: block } .only-pc { display: none !important } }
+
+/* ===== シフト作成：スマホのまとめ ===== */
+.ssum-sp { display: none; margin-bottom: 12px; padding: 12px 14px }
+@media (max-width: 760px) { .ssum-sp.only-sp { display: grid; gap: 8px } }
+.ssum-cost { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap }
+.ssum-cost > b:first-child { font-size: 22px; font-weight: 700 }
+.ssum-pct { margin-left: auto; font-size: 18px }
+.ssum-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted) }
+.ssum-meta b { color: var(--ink); font-family: var(--f-num) }
+.ssum-sp .btn.primary, .ssum-sp .btn:disabled { width: 100% }
+.seg.viewtoggle a { min-width: 52px; justify-content: center }
+
+/* 日：バー表示 */
+.daymoney { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted) }
+.daymoney b { color: var(--ink); font-size: 15px }
+.daymoney .bad-t b { color: var(--bad) } .daymoney .ok-t b { color: var(--ok) }
+.bars { display: grid; gap: 2px; margin-top: 4px }
+.bars-axis { display: grid; grid-template-columns: 96px 1fr; height: 16px }
+.bars-axis > div { position: relative }
+.bars-axis i { position: absolute; transform: translateX(-50%); font-style: normal; font-size: 11px; color: var(--muted); font-family: var(--f-num) }
+.barrow { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 96px 1fr; align-items: center; min-height: 48px; border-radius: 10px; cursor: pointer; padding: 2px 0 }
+.barrow:hover, .barrow:focus-visible { background: var(--surface-2) }
+.barrow:focus-visible { outline: 2px solid var(--accent) }
+.barrow .bn { display: grid; padding-right: 8px; min-width: 0 }
+.barrow .bn b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.barrow .bn small { font-size: 11.5px; color: var(--muted); font-family: var(--f-num); white-space: nowrap }
+.barrow.on .bn small { color: var(--accent); font-weight: 700 }
+.barrow .bt { position: relative; height: 30px; border-radius: 6px; background: var(--surface-2) }
+.barrow .bt i { position: absolute; top: 0; bottom: 0; font-style: normal }
+.barrow .bt .grid { width: 1px; background: var(--line) }
+.barrow .bt .hb { background: var(--hope); border: 1px dashed var(--ok); border-radius: 6px; box-sizing: border-box }
+.barrow .bt .sb { top: 4px; bottom: 4px; background: var(--bar); border-radius: 5px }
+.barrow.mis .bt .sb { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
+.barrow .bt .plus { right: 8px; display: flex; align-items: center; color: var(--accent); font-weight: 700; font-size: 16px; opacity: .7 }
+
+/* 週：7日×全員 */
+.weeknav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px }
+.weeknav .btn { min-width: 48px }
+.wgrid { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 12px }
+.wgrid th, .wgrid td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 0; text-align: center }
+.wgrid tr > :last-child { border-right: 0 }
+.wgrid .wn { width: 76px; text-align: left; padding: 4px 6px; background: var(--surface) }
+.wgrid tbody .wn b { display: block; font-size: 13px; line-height: 1.2 }
+.wgrid tbody .wn small { display: block; font-size: 11px; color: var(--muted); line-height: 1.2 }
+.wgrid thead th { background: var(--surface-2) }
+.wgrid thead th button, .wgrid thead th > span { all: unset; display: grid; justify-items: center; padding: 4px 0; cursor: pointer; width: 100% }
+.wgrid thead th b { font-size: 14px } .wgrid thead th small { font-size: 11px; color: var(--muted) }
+.wgrid thead th.sat b, .wgrid thead th.sat small { color: var(--sat) } .wgrid thead th.sun b, .wgrid thead th.sun small { color: var(--sun) }
+.wgrid .out { background: var(--surface-2); color: var(--muted); opacity: .6 }
+.wgrid td.hope { background: var(--hope) }
+.wgrid td > button { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px; cursor: pointer; padding: 3px 2px }
+.wgrid td > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.wchip { display: inline-flex; flex-direction: column; align-items: center; background: var(--bar); color: var(--accent-ink); border-radius: 6px; padding: 2px 4px; font-size: 11.5px; font-weight: 700; line-height: 1.15; min-width: 28px }
+.wgrid td.mis .wchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
+.whope { font-size: 10.5px; color: var(--ok); line-height: 1.2 }
+.wgrid tfoot th, .wgrid tfoot td { background: var(--surface-2); font-family: var(--f-num); font-size: 11.5px; height: 28px; border-bottom: 0 }
+.wgrid tfoot tr:first-child > * { border-bottom: 1px solid var(--line) }
+.wgrid tfoot th.wn { font-size: 11px; color: var(--muted); font-weight: 700 }
+.wgrid tfoot td.over { background: var(--bad-soft); color: var(--bad); font-weight: 700 } .wgrid tfoot td.under { color: var(--ok) }
+@media (min-width: 761px) { .wgrid .wn { width: 150px } .wgrid td > button { min-height: 52px } .wchip { font-size: 12.5px; padding: 3px 8px; flex-direction: row; gap: 2px } .wchip span + span::before { content: "-" } }
+
+/* 月：スマホのカレンダー */
+.mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px }
+.mcal .mh { text-align: center; font-size: 11.5px; color: var(--muted); font-weight: 700; padding: 2px 0 }
+.mcal .mh.sat { color: var(--sat) } .mcal .mh.sun { color: var(--sun) }
+.mcal .mc { all: unset; box-sizing: border-box; display: grid; justify-items: center; align-content: start; gap: 1px; min-height: 64px; padding: 5px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer }
+.mcal .mc b { font-size: 14px } .mcal .mc.sat b { color: var(--sat) } .mcal .mc.sun b { color: var(--sun) }
+.mcal .mc .mn { font-size: 11.5px; font-weight: 700 }
+.mcal .mc .mm { font-size: 11px; color: var(--muted) }
+.mcal .mc.under { background: var(--ok-soft); border-color: transparent } .mcal .mc.under .mm { color: var(--ok) }
+.mcal .mc.over { background: var(--bad-soft); border-color: transparent } .mcal .mc.over .mm { color: var(--bad); font-weight: 700 }
+.mcal .mc:focus-visible { outline: 2px solid var(--accent) }
+
+/* 月：PCの表を全日入る幅に */
+.mgrid .dh { min-width: 36px } .mgrid td.c { min-width: 36px; height: 44px }
+.mgrid td.c > button { min-height: 44px; padding: 3px 2px; display: flex; align-items: center; justify-content: center }
+.mgrid .sc { min-width: 112px; max-width: 112px }
+@media (min-width: 761px) { .wgrid tbody .wn b, .wgrid tbody .wn small { display: inline; font-size: 13.5px; font-weight: 700; color: var(--ink) } .wgrid tbody .wn small { margin-left: 4px } }
+.mchip { display: inline-flex; flex-direction: column; align-items: center; background: var(--bar); color: var(--accent-ink); border-radius: 5px; padding: 1px 3px; font-size: 11px; font-weight: 700; line-height: 1.15; min-width: 26px }
+td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
+.mhope { font-size: 10px; color: var(--ok); line-height: 1.2; text-align: center }
+.mgrid tfoot td.f { font-size: 10.5px }
+
+/* ===== スマホの一覧を1人1〜2行に（勤怠実績・給与報告・スタッフ） ===== */
+@media (max-width: 760px) {
+  .tbl.stack.dense tr { display: flex !important; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px }
+  .tbl.stack.dense td { width: auto; padding: 0; border: 0; margin: 0; text-align: left }
+  .tbl.stack.dense td.head { order: 0; flex: 1 1 0; min-width: 0; font-size: 15px; padding: 0; margin: 0; border: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap }
+  .tbl.stack.dense td.amt { order: 1; flex: 0 0 auto; font-size: 16px }
+  .tbl.stack.dense td.amt::before { content: none }
+  .tbl.stack.dense td.acts { order: 1; flex: 0 0 auto; display: flex; gap: 6px; padding: 0 }
+  .tbl.stack.dense td.acts .btn { flex: none; min-height: 40px; padding: 0 14px; font-size: 14px }
+  .tbl.stack.dense tr::after { content: ""; order: 2; flex-basis: 100%; height: 0 }
+  .tbl.stack.dense td:not(.head):not(.amt):not(.acts) { order: 3; flex: 0 0 auto; display: inline-flex; gap: 5px; font-size: 13px; align-items: baseline; justify-content: flex-start }
+  .tbl.stack.dense td:not(.head):not(.amt):not(.acts)::before { font-size: 11.5px }
+  .tbl.stack.dense td.full { flex-basis: 100% !important }
+  .tbl.stack.dense td.pc-only, .tbl.stack.dense td.hide-sp { display: none !important }
+  .tbl.stack.dense td.head { flex: 1 1 auto }
+  .tbl.stack.dense td .flag { margin-left: 4px }
+}
+@media (max-width: 760px) { .tbl.stack.dense td.full > span { margin-left: 0 !important } }

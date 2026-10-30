@@ -17,7 +17,7 @@ with sync_playwright() as p:
     pg=c.new_page(); errs=[]; pg.on('pageerror',lambda e: errs.append(str(e)))
     pg.goto(BASE+'/login'); pg.locator('.namegrid button',has_text='上塚 佳祐').click(); keypad(pg,'1111'); pg.wait_for_url(re.compile('/manage/'))
     pg.goto(f'{BASE}/manage/shifts?ym={ym}'); pg.wait_for_load_state('networkidle')
-    n0=pg.locator('.chip').count()
+    n0=pg.locator('.mchip').count()
     # 1) 通信を切った状態でシフトを保存
     pg.route('**/manage/shifts**', block)
     pg.get_by_label(f'佐藤 美咲 {nm.month}月5日').click(); pg.wait_for_selector('.modal')
@@ -25,14 +25,14 @@ with sync_playwright() as p:
     pg.wait_for_selector('.toast'); t=pg.inner_text('.toast')
     ok('通信できないと「保存されていません」と出る', '保存されていません' in t, t)
     pg.wait_for_timeout(500)
-    ok('画面のシフトも元に戻る（保存されたように見えない）', pg.locator('.chip').count()==n0, f'{n0} -> {pg.locator(".chip").count()}')
+    ok('画面のシフトも元に戻る（保存されたように見えない）', pg.locator('.mchip').count()==n0, f'{n0} -> {pg.locator(".mchip").count()}')
     ok('保存済みの表示に戻る', '保存済み' in pg.inner_text('.savestate'))
     # 2) 通信を戻して保存 → 再読み込みしても残る
     pg.unroute('**/manage/shifts**', block)
     pg.get_by_label(f'佐藤 美咲 {nm.month}月5日').click(); pg.wait_for_selector('.modal')
     pg.locator('.pats button').first.click(); pg.click('.modal button.primary'); pg.wait_for_timeout(1500)
     pg.reload(); pg.wait_for_load_state('networkidle')
-    ok('通信が戻れば保存され、再読み込みしても残る', pg.locator('.chip').count()==n0+1, f'{n0} -> {pg.locator(".chip").count()}')
+    ok('通信が戻れば保存され、再読み込みしても残る', pg.locator('.mchip').count()==n0+1, f'{n0} -> {pg.locator(".mchip").count()}')
     # 3) スタッフの打刻・希望提出も同様
     s=b.new_context(viewport={'width':390,'height':844},timezone_id='Asia/Tokyo'); s.route('**/fonts.googleapis.com/**', lambda r: r.fulfill(body='', content_type='text/css'))
     sp=s.new_page(); sp.on('pageerror',lambda e: errs.append(str(e)))
