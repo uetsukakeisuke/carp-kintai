@@ -106,7 +106,7 @@ export async function currentUser(): Promise<User | null> {
 export async function requireUser(opts: { allowMustChange?: boolean } = {}): Promise<User> {
   const u = await currentUser();
   if (!u) redirect('/login');
-  if (u.pin_must_change && u.role !== 'staff' && !opts.allowMustChange) redirect('/pin');
+  void opts; // パスワード変更は任意（強制しない）
   return u;
 }
 

@@ -41,7 +41,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
     return (
       <div>
         <div className="row" style={{ justifyContent: 'space-between', margin: '12px 0 0' }}>
-          <span><b style={{ fontSize: 18 }}>{me.name} さん</b><br /><span className="sub">店長・管理者はパスワード（4桁）を入れてください</span></span>
+          <span><b style={{ fontSize: 18 }}>{me.name} さん</b><br /><span className="sub">店長・管理者はパスワード（4桁）を入れてください（変えていなければ 1111）</span></span>
           <button className="btn ghost" type="button" onClick={() => { setSel(null); setPin(''); setErr(''); try { localStorage.removeItem(KEY); } catch {} }}>別の人</button>
         </div>
         <Keypad value={pin} onChange={setPin} onDone={submit} disabled={pending} />

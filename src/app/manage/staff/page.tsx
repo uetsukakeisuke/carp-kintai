@@ -17,7 +17,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       showAll={sp.all === '1'}
       today={today}
       minWage={{ now: minWageAt(mw, today), next }}
-      stores={stores.map((s) => ({ id: s.id, name: s.name }))}
+      stores={stores.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name }))}
       staff={staff.map((s) => {
         const r = rates.get(s.id) ?? [];
         const cur = wageAt(r, today);

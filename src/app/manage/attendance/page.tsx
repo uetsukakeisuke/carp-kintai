@@ -64,7 +64,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       )}
       {missing.length > 0 && <div className="banner bad"><span><b>退勤の打刻がない勤務が{missing.length}件あります。</b>　本人に修正申請をしてもらうか、確認してください：{missing.slice(0, 6).map((x) => `${x.name} ${dateLabel(x.date)}`).join('、')}{missing.length > 6 ? ' ほか' : ''}</span></div>}
       <div className="chips" style={{ marginBottom: 10 }}>
-        {stores.map((s) => <Link key={s.id} className={`btn${s.id === store?.id ? ' primary' : ''}`} href={`/manage/attendance?store=${s.id}&d=${d}`}>{s.name}</Link>)}
+        {stores.length > 1 && stores.map((s) => <Link key={s.id} className={`btn${s.id === store?.id ? ' primary' : ''}`} href={`/manage/attendance?store=${s.id}&d=${d}`}>{s.name}</Link>)}
       </div>
       <div className="daystrip">
         {strip.map((k) => <Link key={k} href={`/manage/attendance?store=${store?.id}&d=${k}`} aria-current={k === d ? 'true' : undefined}><b>{Number(k.slice(8))}</b><small>{k === now.date ? '今日' : WD[weekday(k)]}</small></Link>)}

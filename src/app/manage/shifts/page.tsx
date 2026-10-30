@@ -20,7 +20,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
     <>
       <div className="ph">
         <div className="chips">
-          {stores.map((s) => <Link key={s.id} className={`btn${s.id === store.id ? ' primary' : ''}`} href={`/manage/shifts?store=${s.id}&ym=${ym}`}>{s.name}</Link>)}
+          {stores.length > 1 && stores.map((s) => <Link key={s.id} className={`btn${s.id === store.id ? ' primary' : ''}`} href={`/manage/shifts?store=${s.id}&ym=${ym}`}>{s.name}</Link>)}
         </div>
         <span className="grow" />
         <div className="monthnav">

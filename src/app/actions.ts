@@ -20,7 +20,7 @@ const isMin = (n: unknown): n is number => Number.isInteger(n) && (n as number) 
 export async function loginAction(staffId: number, pin: string | null): Promise<Result & { needPin?: boolean }> {
   const r = await login(Number(staffId), pin === null ? null : String(pin));
   if (!r.ok) return r;
-  redirect(r.mustChange ? '/pin' : '/');
+  redirect('/');
 }
 export async function logoutAction() {
   await logout();
@@ -81,6 +81,11 @@ export async function requestCorrectionAction(date: string, kind: PunchKind, min
 export async function saveHopesAction(year: number, month: number, days: { date: string; start: number; end: number }[], submit: boolean): Promise<Result> {
   const u = await requireUser();
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
+  const [p] = await sql<{ hope_open: string | null; hope_deadline: string | null }[]>`
+    select hope_open, hope_deadline from shift_periods where store_id = ${u.store_id ?? 0} and year = ${year} and month = ${month}`;
+  const today = jstParts().date;
+  if (p?.hope_open && today < p.hope_open) return { ok: false, error: `${month}月分の受付は${Number(p.hope_open.slice(5, 7))}月${Number(p.hope_open.slice(8))}日からです` };
+  if (p?.hope_deadline && today > p.hope_deadline) return { ok: false, error: '締切を過ぎています。変更は店長に相談してください' };
   for (const d of days) {
     if (!isDate(d.date) || d.date < from || d.date > to || !isMin(d.start) || !isMin(d.end)) return { ok: false, error: '入力内容を確認してください' };
     if (d.end <= d.start) return { ok: false, error: `${Number(d.date.slice(8))}日：終了時刻を開始時刻より後にしてください` };
@@ -114,13 +119,16 @@ export async function publishAction(storeId: number, year: number, month: number
   revalidatePath('/manage/shifts');
   return { ok: true, message: `${month}月のシフトを公開しました。スタッフ全員が見られます` };
 }
-export async function setHopeDeadlineAction(storeId: number, year: number, month: number, deadline: string): Promise<Result> {
-  await requireManager();
-  if (!isDate(deadline)) return { ok: false, error: '日付が正しくありません' };
-  await sql`insert into shift_periods (store_id, year, month, hope_deadline) values (${storeId}, ${year}, ${month}, ${deadline})
-    on conflict (store_id, year, month) do update set hope_deadline = excluded.hope_deadline`;
-  revalidatePath('/manage/hopes');
-  return { ok: true, message: '締切を保存しました' };
+export async function setHopePeriodAction(storeId: number, year: number, month: number, open: string, deadline: string): Promise<Result> {
+  const u = await requireManager();
+  const o = open || null, d = deadline || null;
+  if ((o && !isDate(o)) || (d && !isDate(d))) return { ok: false, error: '日付が正しくありません' };
+  if (o && d && o > d) return { ok: false, error: '受付開始日は締切日より前にしてください' };
+  await sql`insert into shift_periods (store_id, year, month, hope_open, hope_deadline) values (${storeId}, ${year}, ${month}, ${o}, ${d})
+    on conflict (store_id, year, month) do update set hope_open = excluded.hope_open, hope_deadline = excluded.hope_deadline`;
+  await audit(u.id, 'hope_period', { storeId, year, month, open: o, deadline: d });
+  revalidatePath('/manage/hopes'); revalidatePath('/me/hopes');
+  return { ok: true, message: '受付期間を保存しました' };
 }
 
 // ---------- 勤怠（店長） ----------

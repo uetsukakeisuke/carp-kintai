@@ -113,8 +113,8 @@ export interface ShiftCell { staff_id: number; work_date: string; start_min: num
 
 export async function monthBundle(storeId: number, year: number, month: number) {
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
-  const [period] = await sql<{ id: number; status: 'draft' | 'published' | 'changed'; hope_deadline: string | null; published_at: Date | null }[]>`
-    select id, status, hope_deadline, published_at from shift_periods where store_id = ${storeId} and year = ${year} and month = ${month}`;
+  const [period] = await sql<{ id: number; status: 'draft' | 'published' | 'changed'; hope_open: string | null; hope_deadline: string | null; published_at: Date | null }[]>`
+    select id, status, hope_open, hope_deadline, published_at from shift_periods where store_id = ${storeId} and year = ${year} and month = ${month}`;
   const staff = await listStaff({ storeId });
   const ids = staff.map((s) => s.id);
   const [drafts, published, hopes, subs, budgets, rates, mw] = await Promise.all([
