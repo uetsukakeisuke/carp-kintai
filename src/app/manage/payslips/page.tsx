@@ -2,10 +2,9 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { listStaff } from '@/lib/data';
 import { payslipMonths, payslipsForMonth, payslipById, recentImports, getImportSecret } from '@/lib/payslips';
-import { sql } from '@/lib/db';
 import { gasScript } from '@/lib/gas-script';
 import { PayslipView } from '@/components/PayslipView';
-import { UploadForm, AssignRow, ScriptBox, RotateSecret } from './PayslipAdmin';
+import { UploadForm, ScriptBox, RotateSecret } from './PayslipAdmin';
 
 export const dynamic = 'force-dynamic';
 const yen = (n: number) => '¥' + Math.round(n).toLocaleString('ja-JP');
@@ -23,10 +22,7 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
       </div>
     );
   }
-  const [months, imports, staff, secret, unmatchedRows] = await Promise.all([
-    payslipMonths(), recentImports(), listStaff(), getImportSecret(true),
-    sql<{ slip_name: string; n: number }[]>`select slip_name, count(*)::int as n from payslips where staff_id is null and not ignored group by 1 order by 1`,
-  ]);
+  const [months, imports, staff, secret] = await Promise.all([payslipMonths(), recentImports(), listStaff(), getImportSecret(true)]);
   const sel = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : months[0] ? `${months[0].work_year}-${String(months[0].work_month).padStart(2, '0')}` : null;
   const [y, m] = sel ? sel.split('-').map(Number) : [0, 0];
   const slips = sel ? await payslipsForMonth(y, m) : [];
@@ -39,13 +35,6 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
     <>
       <div className="ph"><h1>給与明細</h1></div>
 
-      {unmatchedRows.length > 0 && (
-        <div className="card" style={{ marginBottom: 14, borderColor: 'var(--warn)' }}>
-          <b>スタッフと結びつかない明細があります</b>
-          <p className="sub" style={{ margin: '4px 0 10px' }}>明細書の名前と、アプリに登録した名前が一致しませんでした。誰の明細か選んでください（次の月からは自動で結びつきます）。退職した人など、アプリに登録していない人は「対象外」を選んでください。</p>
-          <div style={{ display: 'grid', gap: 8 }}>{unmatchedRows.map((r) => <AssignRow key={r.slip_name} slipName={r.slip_name} staff={staff.map((s) => ({ id: s.id, name: s.name }))} />)}</div>
-        </div>
-      )}
 
       <div className="chips" style={{ marginBottom: 12 }}>
         {months.map((x) => { const k = `${x.work_year}-${String(x.work_month).padStart(2, '0')}`; return <Link key={k} className={`btn${k === sel ? ' primary' : ''}`} href={`/manage/payslips?ym=${k}`}>{x.work_month}月分</Link>; })}
@@ -56,7 +45,7 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
           <tbody>
             {slips.map((s) => (
               <tr key={s.id}>
-                <td className="head"><b>{s.staff_name ?? s.slip_name}</b>{!s.staff_id && <span className="flag f-late">未結びつけ</span>}</td>
+                <td className="head"><b>{s.staff_name ?? s.slip_name}</b></td>
                 <td data-label="総支給" className="num">{yen(s.gross)}</td>
                 <td data-label="控除" className="num">{yen(s.deduction)}</td>
                 <td data-label="差引" className="num amt"><b>{yen(s.net)}</b></td>
@@ -98,7 +87,7 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
               <tr key={i.id}>
                 <td className="num" style={{ whiteSpace: 'nowrap' }}>{dt(i.created_at)}</td>
                 <td>{i.source === 'gmail' ? 'Gmail' : '手動'}</td>
-                <td>{i.error ? <span className="bad-t">{i.error}</span> : `${i.slips}人分${i.unmatched ? `（未結びつけ ${i.unmatched}）` : ''}`}</td>
+                <td>{i.error ? <span className="bad-t">{i.error}</span> : `${i.slips - i.unmatched}人分`}</td>
               </tr>
             ))}</tbody>
           </table></div>

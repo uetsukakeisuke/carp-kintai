@@ -264,7 +264,7 @@ export async function uploadPayslipsAction(form: FormData): Promise<Result> {
   );
   revalidatePath('/manage/payslips');
   if (!r.ok) return { ok: false, error: r.error ?? '取り込めませんでした' };
-  return { ok: true, message: `${r.slips}人分の明細を取り込みました${r.unmatched.length ? `（スタッフと結びつかない人：${r.unmatched.join('、')}）` : ''}` };
+  return { ok: true, message: `${r.slips - r.unmatched.length}人分の明細を取り込みました` };
 }
 export async function assignPayslipAction(slipName: string, staffId: number): Promise<Result> {
   const u = await requireManager();

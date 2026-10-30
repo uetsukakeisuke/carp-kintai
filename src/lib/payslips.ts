@@ -46,8 +46,8 @@ export async function importPayslipFiles(
       const byCode = s.code ? staff.find((x) => x.payroll_code === s.code) : undefined;
       const byName = staff.filter((x) => normName(x.name) === normName(s.name));
       const st = byCode ?? (byName.length === 1 ? byName[0] : undefined);
-      const [ign] = st ? [] : await tx`select 1 from payslips where slip_name = ${normName(s.name)} and ignored limit 1`;
-      if (!st) { if (!ign) unmatched.push(s.name); }
+      // アプリに登録していない人（退職者など）の明細は保存するが表示しない（ignored）
+      if (!st) unmatched.push(s.name);
       else if (s.code && st.payroll_code !== s.code) await tx`update staff set payroll_code = ${s.code} where id = ${st.id}`;
       const t = slipTotals(s);
       months.add(`${s.workYear}-${String(s.workMonth).padStart(2, '0')}`);
@@ -55,10 +55,10 @@ export async function importPayslipFiles(
       const data = { attendance: Object.entries(s.attendance), pay: Object.entries(s.pay), deduction: Object.entries(s.deduction), unit: Object.entries(s.unit) };
       await tx`
         insert into payslips (staff_id, ignored, slip_name, slip_code, work_year, work_month, pay_date, period, data, gross, deduction, net, import_id)
-        values (${st?.id ?? null}, ${!st && !!ign}, ${normName(s.name)}, ${s.code}, ${s.workYear}, ${s.workMonth}, ${s.payDate}, ${s.period}, ${tx.json(data as never)}, ${t.gross}, ${t.deduction}, ${t.net}, ${imp.id})
+        values (${st?.id ?? null}, ${!st}, ${normName(s.name)}, ${s.code}, ${s.workYear}, ${s.workMonth}, ${s.payDate}, ${s.period}, ${tx.json(data as never)}, ${t.gross}, ${t.deduction}, ${t.net}, ${imp.id})
         on conflict (slip_name, work_year, work_month) do update set
           staff_id = coalesce(excluded.staff_id, payslips.staff_id), slip_code = excluded.slip_code, pay_date = excluded.pay_date, period = excluded.period,
-          ignored = payslips.ignored, data = excluded.data, gross = excluded.gross, deduction = excluded.deduction, net = excluded.net, import_id = excluded.import_id, updated_at = now()`;
+          ignored = excluded.staff_id is null and payslips.staff_id is null, data = excluded.data, gross = excluded.gross, deduction = excluded.deduction, net = excluded.net, import_id = excluded.import_id, updated_at = now()`;
     }
     await tx`update payslip_imports set unmatched = ${unmatched.length} where id = ${imp.id}`;
   });
@@ -104,7 +104,7 @@ export async function payslipsOf(staffId: number) {
 }
 export async function payslipsForMonth(year: number, month: number) {
   return sql<Payslip[]>`select p.*, s.name as staff_name from payslips p left join staff s on s.id = p.staff_id
-    where work_year = ${year} and work_month = ${month} and not p.ignored order by s.sort nulls last, s.id, p.slip_code`;
+    where work_year = ${year} and work_month = ${month} and p.staff_id is not null order by s.sort nulls last, s.id, p.slip_code`;
 }
 export async function payslipById(id: number) {
   const [p] = await sql<Payslip[]>`select p.*, s.name as staff_name from payslips p left join staff s on s.id = p.staff_id where p.id = ${id}`;
@@ -112,8 +112,8 @@ export async function payslipById(id: number) {
 }
 export async function payslipMonths() {
   return sql<{ work_year: number; work_month: number; n: number; unmatched: number; pay_date: string | null }[]>`
-    select work_year, work_month, count(*)::int as n, count(*) filter (where staff_id is null and not ignored)::int as unmatched, max(pay_date)::text as pay_date
-    from payslips group by 1, 2 order by 1 desc, 2 desc`;
+    select work_year, work_month, count(*)::int as n, 0 as unmatched, max(pay_date)::text as pay_date
+    from payslips where staff_id is not null group by 1, 2 order by 1 desc, 2 desc`;
 }
 export async function recentImports() {
   return sql<{ id: number; source: string; subject: string | null; file_names: string[]; slips: number; unmatched: number; error: string | null; created_at: Date }[]>`
