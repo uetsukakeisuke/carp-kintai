@@ -16,6 +16,7 @@
     "import:staff": "tsx scripts/import-staff.ts"
   },
   "dependencies": {
+    "@vladmandic/face-api": "1.7.15",
     "@xmldom/xmldom": "0.8.15",
     "bcryptjs": "2.4.3",
     "jszip": "3.10.1",

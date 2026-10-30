@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import {
   login, logout, changePin, requireUser, requireManager, resetPin, verifyPin, currentTerminal, enableTerminal, disableTerminal,
-  hashPin, INITIAL_PIN, isManager, punchCodeOk,
+  hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
 import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
+import { hasFace, matchFace, registerFace, deleteFace, validDescriptor, type FaceInput, type FaceResult } from '@/lib/face';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -40,13 +41,25 @@ function punchMessage(kind: PunchKind, minute: number) {
   return `${PUNCH_LABEL[kind]} ${h}:${m} を記録しました`;
 }
 const CODE_ERR = '打刻コードが違います。もう一度入力してください。';
-export async function punchAction(kind: PunchKind, code: string): Promise<Result> {
+const FACE_REQUIRED = '顔の確認が必要です。画面を更新してもう一度打刻してください。';
+function faceNote(f: FaceResult | null) {
+  return !f ? '' : f.face === 'ok' ? '（本人確認OK）' : f.face === 'mismatch' ? '（顔が一致しなかったため、店長の確認待ちになります）' : '（写真なしのため、店長の確認待ちになります）';
+}
+/** 打刻コードだけ先に確かめる（顔の撮影の前に） */
+export async function checkPunchCodeAction(code: string): Promise<Result> {
+  const [u, t] = await Promise.all([currentUser(), currentTerminal()]);
+  if (!u && !t) return { ok: false, error: 'ログインしてください' };
+  return punchCodeOk(code) ? { ok: true } : { ok: false, error: CODE_ERR };
+}
+export async function punchAction(kind: PunchKind, code: string, face?: FaceInput): Promise<Result> {
   const u = await requireUser();
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
   if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
-  const r = await recordPunch(u.id, kind, 'mobile');
+  const f = await matchFace(u.id, face);
+  if (f === 'required') return { ok: false, error: FACE_REQUIRED };
+  const r = await recordPunch(u.id, kind, 'mobile', f);
   revalidatePath('/me');
-  return r.ok ? { ok: true, message: punchMessage(kind, r.minute) } : r;
+  return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }
 
 /** 店舗端末：打刻コードを確かめてから、その人の今日の状態を返す */
@@ -54,18 +67,20 @@ export async function terminalStateAction(staffId: number, code: string) {
   const t = await currentTerminal();
   if (!t) return { ok: false as const, error: 'この端末は店舗端末として設定されていません' };
   if (!punchCodeOk(code)) return { ok: false as const, error: CODE_ERR };
-  const day = await resolveWorkDay(Number(staffId));
-  return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })) };
+  const [day, face] = await Promise.all([resolveWorkDay(Number(staffId)), hasFace(Number(staffId))]);
+  return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })), face };
 }
-export async function terminalPunchAction(staffId: number, code: string, kind: PunchKind): Promise<Result> {
+export async function terminalPunchAction(staffId: number, code: string, kind: PunchKind, face?: FaceInput): Promise<Result> {
   const t = await currentTerminal();
   if (!t) return { ok: false, error: 'この端末は店舗端末として設定されていません' };
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
   if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
   const [s] = await sql<{ id: number }[]>`select id from staff where id = ${Number(staffId)} and active`;
   if (!s) return { ok: false, error: 'このスタッフは利用できません' };
-  const r = await recordPunch(Number(staffId), kind, 'terminal');
-  return r.ok ? { ok: true, message: punchMessage(kind, r.minute) } : r;
+  const f = await matchFace(Number(staffId), face);
+  if (f === 'required') return { ok: false, error: FACE_REQUIRED };
+  const r = await recordPunch(Number(staffId), kind, 'terminal', f);
+  return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }
 
 export async function requestCorrectionAction(date: string, kind: PunchKind, minute: number, reason: string): Promise<Result> {
@@ -168,7 +183,10 @@ export async function saveStaffAction(id: number | null, input: StaffInput): Pro
     role = coalesce(${role ?? null}, role), active = coalesce(${input.active ?? null}, active),
     retired_at = case when ${input.active === false} then coalesce(retired_at, current_date) when ${input.active === true} then null else retired_at end
     where id = ${id}`;
-  if (input.active === false) await sql`delete from sessions where staff_id = ${id}`;
+  if (input.active === false) {
+    await sql`delete from sessions where staff_id = ${id}`;
+    await sql`delete from staff_faces where staff_id = ${id}`; // 退職したら顔の登録も消す
+  }
   await audit(u.id, 'staff_update', { id, input });
   revalidatePath('/manage/staff');
   return { ok: true, message: '保存しました' };
@@ -323,4 +341,20 @@ export async function editPunchesAction(staffId: number, date: string, items: { 
   await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
   revalidatePath('/manage/attendance');
   return { ok: true, message: '勤怠を直しました' };
+}
+
+// ---------- 顔の登録（管理者が本人の同意を得て行う） ----------
+export async function registerFaceAction(staffId: number, descriptor: number[], consent: boolean): Promise<Result> {
+  const u = await requireManager();
+  if (!consent) return { ok: false, error: '本人への説明と同意の確認にチェックしてください' };
+  if (!validDescriptor(descriptor)) return { ok: false, error: '顔を読み取れませんでした。撮り直してください' };
+  await registerFace(u.id, Number(staffId), descriptor);
+  revalidatePath('/manage/staff');
+  return { ok: true, message: '顔を登録しました。次の打刻から本人確認をします' };
+}
+export async function deleteFaceAction(staffId: number): Promise<Result> {
+  const u = await requireManager();
+  await deleteFace(u.id, Number(staffId));
+  revalidatePath('/manage/staff');
+  return { ok: true, message: '顔の登録を消しました' };
 }

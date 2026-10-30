@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { saveStaffAction, addWageAction, resetPinAction, resetSlipPinAction, raiseToMinWageAction, type StaffInput } from '@/app/actions';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
+import { FaceRegister } from './FaceRegister';
 
 type S = {
   id: number; name: string; kana: string; role: 'staff' | 'manager' | 'admin'; employment: string; payType: string; storeId: number | null;
   transport: number; commuteMeans: string; active: boolean; mustChange: boolean; locked: boolean; wage: number | null;
   future: { effective_from: string; hourly: number }[]; history: { effective_from: string; hourly: number }[]; belowNow: boolean; belowNext: boolean;
+  faceAt: string | null;
 };
 const yen = (n: number | null) => (n === null ? '—' : '¥' + n.toLocaleString('ja-JP'));
 const ROLE = { staff: 'スタッフ', manager: '店長', admin: '管理者' };
@@ -24,6 +26,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
   const [edit, setEdit] = useState<(StaffInput & { id: number | null; active: boolean }) | null>(null);
   const [wage, setWage] = useState<{ s: S; from: string; hourly: number } | null>(null);
   const [err, setErr] = useState('');
+  const [face, setFace] = useState<S | null>(null);
   const low = staff.filter((s) => s.active && (s.belowNow || s.belowNext));
   const run = (f: () => Promise<{ ok: true; message?: string } | { ok: false; error: string }>, close: () => void) => start(async () => {
     setErr('');
@@ -52,7 +55,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
         <Link className="btn ghost" href={showAll ? '/manage/staff' : '/manage/staff?all=1'}>{showAll ? '在籍中だけ表示' : '退職者も表示'}</Link>
       </div>
       <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 820 }}>
-        <thead><tr><th>スタッフ</th><th>所属</th><th>権限</th><th>現在の時給</th><th>予定の改定</th><th>交通費／日</th><th>ログイン</th><th></th></tr></thead>
+        <thead><tr><th>スタッフ</th><th>所属</th><th>権限</th><th>現在の時給</th><th>予定の改定</th><th>交通費／日</th><th>ログイン</th><th>顔</th><th></th></tr></thead>
         <tbody>
           {staff.map((s) => (
             <tr key={s.id} style={s.active ? undefined : { opacity: .55 }}>
@@ -63,8 +66,10 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
               <td data-label="改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
               <td data-label="交通費" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
               <td data-label="ログイン" className={s.role === 'staff' ? 'hide-sp' : ''}>{s.role === 'staff' ? <span className="sub">名前だけ</span> : s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">パスワード設定済み</span>}</td>
+              <td data-label="顔" className={s.faceAt ? '' : 'hide-sp'}>{s.faceAt ? <span className="stt s-done">登録済み</span> : <span className="sub">—</span>}</td>
               <td className="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {s.payType === 'hourly' && <button className="btn" onClick={() => { setErr(''); setWage({ s, from: today, hourly: s.wage ?? minWage.now }); }}>時給</button>}{' '}
+                <button className="btn" onClick={() => setFace(s)} aria-label={`${s.name}の顔を登録`}>顔</button>{' '}
                 <button className="btn" onClick={() => { setErr(''); setEdit({ id: s.id, name: s.name, kana: s.kana, storeId: s.storeId, employment: s.employment, transport: s.transport, commuteMeans: s.commuteMeans, role: s.role, active: s.active }); }}>編集</button>
               </td>
             </tr>
@@ -124,6 +129,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
           </div>
         </div>
       )}
+      {face && <FaceRegister staff={{ id: face.id, name: face.name }} registeredAt={face.faceAt} onClose={() => setFace(null)} onDone={toast} />}
       {node}
     </>
   );

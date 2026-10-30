@@ -9,6 +9,8 @@ import { PunchButtons } from '@/components/PunchButtons';
 import { PunchLog, STATE_LABEL } from '@/components/PunchLog';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
+import { FaceCapture } from '@/components/FaceCapture';
+import { loadFace } from '@/lib/face-client';
 
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 type Row = { id: number; name: string; state: string; plan: { start: number; end: number } | null };
@@ -18,6 +20,10 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   const [sel, setSel] = useState<Row | null>(null);
   const [pin, setPin] = useState('');
   const [punches, setPunches] = useState<{ kind: PunchKind; minute: number }[] | null>(null);
+  const [needFace, setNeedFace] = useState(false);
+  const [faceKind, setFaceKind] = useState<PunchKind | null>(null);
+  // 店舗端末では顔認証の準備を最初にしておく
+  useEffect(() => { const t = setTimeout(() => loadFace().catch(() => {}), 2000); return () => clearTimeout(t); }, []);
   const [err, setErr] = useState('');
   const [pending, start] = useTransition();
   const [toast, node] = useToast();
@@ -29,15 +35,19 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   // 放置されたら閉じる（他の人が続けて押さないように）
   useEffect(() => { if (!sel) return; const t = setTimeout(() => close(), 45000); return () => clearTimeout(t); }, [sel, punches]); // eslint-disable-line
 
-  const close = () => { setSel(null); setPin(''); setPunches(null); setErr(''); };
+  const close = () => { setSel(null); setPin(''); setPunches(null); setErr(''); setNeedFace(false); setFaceKind(null); };
   const check = (v: string) => start(async () => {
     setErr('');
     const r = await call(() => terminalStateAction(sel!.id, v));
     if (!r.ok) { setErr(r.error); setPin(''); return; }
-    setPunches(r.punches);
+    setPunches(r.punches); setNeedFace(!!r.face);
   });
-  const punch = (k: PunchKind) => start(async () => {
-    const r = await call(() => terminalPunchAction(sel!.id, pin, k));
+  const punch = (k: PunchKind, d?: number[] | null) => {
+    if (needFace && d === undefined) { setFaceKind(k); return; }
+    doPunch(k, d);
+  };
+  const doPunch = (k: PunchKind, d?: number[] | null) => start(async () => {
+    const r = await call(() => terminalPunchAction(sel!.id, pin, k, needFace ? { d: d ?? null } : undefined));
     const name = sel!.name;
     close();
     toast(r.ok ? `${name}さん ${r.message}` : r.error);
@@ -69,6 +79,12 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
               <>
                 <p className="meta">打刻コード（4桁）を入れてください</p>
                 <Keypad value={pin} onChange={setPin} onDone={check} disabled={pending} />
+              </>
+            ) : faceKind ? (
+              <>
+                <p className="meta">本人確認のため、顔をカメラに向けてください。写真は保存されません。</p>
+                {pending ? <p className="sub" style={{ textAlign: 'center' }}>記録しています…</p>
+                  : <FaceCapture onDone={(d) => doPunch(faceKind, d)} onSkip={() => doPunch(faceKind, null)} skipLabel="写真なしで打刻（店長確認）" />}
               </>
             ) : (
               <>

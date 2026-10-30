@@ -33,6 +33,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     if (sh && sum.lastOut !== null && sum.lastOut < sh.end_min - 5) flags.push(['early', `早退 ${sh.end_min - sum.lastOut}分`]);
     if (sh && sum.lastOut !== null && sum.lastOut > sh.end_min + 14) flags.push(['ot', `残業 ${sum.lastOut - sh.end_min}分`]);
     if (sum.segments.length > 1) flags.push(['re', `${sum.segments.length}回に分けて勤務`]);
+    if (ps.some((p) => p.face === 'mismatch' || p.face === 'skipped')) flags.push(['late', '顔 要確認']);
     return { s, ps, sh, sum, cost, plan, flags };
   }).filter((r) => r.ps.length || r.sh);
   // 直近2週間の退勤漏れ
@@ -42,6 +43,10 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     const ps = weekPunches.filter((p) => p.staff_id === s.id && p.work_date === k);
     if (ps.length && summarizeDay(ps, { isPast: true }).state === 'missing') missing.push({ name: s.name, date: k });
   }
+  // 直近2週間で顔の確認が必要な打刻（一致しない・写真なし）
+  const faceChecks = weekPunches.filter((p) => p.face === 'mismatch' || p.face === 'skipped')
+    .map((p) => ({ name: staff.find((s) => s.id === p.staff_id)?.name ?? '', date: p.work_date, face: p.face }))
+    .filter((x, i, a) => x.name && a.findIndex((y) => y.name === x.name && y.date === x.date) === i);
   const totalCost = rows.reduce((a, r) => a + r.cost, 0), totalPlan = rows.reduce((a, r) => a + r.plan, 0);
   const strip = Array.from({ length: 14 }, (_, i) => addDays(now.date, i - 13));
 
@@ -69,6 +74,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       <div className="chips" style={{ marginBottom: 10 }}>
         {stores.length > 1 && stores.map((s) => <Link key={s.id} className={`btn${s.id === store?.id ? ' primary' : ''}`} href={`/manage/attendance?store=${s.id}&d=${d}`}>{s.name}</Link>)}
       </div>
+      {faceChecks.length > 0 && <div className="banner warn"><span><b>顔の確認が必要な打刻が{faceChecks.length}件あります（直近2週間）。</b>　顔が登録と一致しなかった、または写真なしで打刻されたものです。押すとその日に移ります：{faceChecks.slice(0, 8).map((x, i) => <span key={i}>{i ? '、' : ''}<Link href={`/manage/attendance?store=${store?.id}&d=${x.date}`}>{x.name} {dateLabel(x.date)}</Link></span>)}{faceChecks.length > 8 ? ' ほか' : ''}</span></div>}
       <form className="row" style={{ gap: 8, marginBottom: 8 }} action="/manage/attendance">
         <input type="hidden" name="store" value={store?.id} />
         <Link className="btn" href={`/manage/attendance?store=${store?.id}&d=${addDays(d, -1)}`} aria-label="前の日">‹</Link>

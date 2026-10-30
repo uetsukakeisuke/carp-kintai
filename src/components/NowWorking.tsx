@@ -9,6 +9,7 @@ const REFRESH_MS = 30_000;
 export function NowWorking({ initial, meId }: { initial: NowBoard; meId?: number }) {
   const [b, setB] = useState(initial);
   const [stale, setStale] = useState(false);
+  useEffect(() => { setB(initial); }, [initial]); // 自分が打刻して画面が更新されたらすぐ反映
   useEffect(() => {
     let alive = true;
     const load = async () => {

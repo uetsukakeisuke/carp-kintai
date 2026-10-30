@@ -40,10 +40,10 @@ export async function minWages() {
 }
 
 // ---------------- 打刻 ----------------
-export interface PunchRow { id: number; staff_id: number; store_id: number | null; work_date: string; kind: PunchKind; minute: number; via: string; original_minute: number | null; correction_reason: string | null }
+export interface PunchRow { id: number; staff_id: number; store_id: number | null; work_date: string; kind: PunchKind; minute: number; via: string; original_minute: number | null; correction_reason: string | null; face: 'ok' | 'mismatch' | 'skipped' | null }
 
 export async function punchesBetween(from: string, to: string, staffId?: number): Promise<PunchRow[]> {
-  return sql<PunchRow[]>`select id, staff_id, store_id, work_date, kind, minute, via, original_minute, correction_reason
+  return sql<PunchRow[]>`select id, staff_id, store_id, work_date, kind, minute, via, original_minute, correction_reason, face
     from punches where not voided and work_date between ${from} and ${to}
     and (${staffId ?? null}::int is null or staff_id = ${staffId ?? null})
     order by work_date, minute, id`;
@@ -65,13 +65,13 @@ export async function resolveWorkDay(staffId: number, now = new Date()): Promise
   return { date: t.date, minute: t.minute, punches: tp };
 }
 
-export async function recordPunch(staffId: number, kind: PunchKind, via: 'mobile' | 'terminal'): Promise<{ ok: true; date: string; minute: number } | { ok: false; error: string }> {
+export async function recordPunch(staffId: number, kind: PunchKind, via: 'mobile' | 'terminal', face: { face: string; distance: number | null } | null = null): Promise<{ ok: true; date: string; minute: number } | { ok: false; error: string }> {
   const day = await resolveWorkDay(staffId);
   if (!canPunch(day.punches, kind)) return { ok: false, error: 'いまはこの打刻はできません。画面を更新して状態を確認してください。' };
   const last = day.punches[day.punches.length - 1];
   if (last && day.minute - last.minute < 1 && last.kind === kind) return { ok: false, error: '同じ打刻が続けて押されました。' };
   const [st] = await sql<{ store_id: number | null }[]>`select store_id from staff where id = ${staffId}`;
-  await sql`insert into punches (staff_id, store_id, work_date, kind, minute, via) values (${staffId}, ${st?.store_id ?? null}, ${day.date}, ${kind}, ${day.minute}, ${via})`;
+  await sql`insert into punches (staff_id, store_id, work_date, kind, minute, via, face, face_distance) values (${staffId}, ${st?.store_id ?? null}, ${day.date}, ${kind}, ${day.minute}, ${via}, ${face?.face ?? null}, ${face?.distance ?? null})`;
   return { ok: true, date: day.date, minute: day.minute };
 }
 
