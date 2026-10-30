@@ -438,3 +438,45 @@ tfoot td.f { font-size: 12px }
   .hope-period > span[aria-hidden] { display: none; }
   .hope-period button { width: 100%; }
 }
+
+/* ===== シフト希望の提出状況（店長） ===== */
+.hp-period { margin-bottom: 12px; padding: 12px 14px }
+.hp-period-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px }
+.hp-dates { display: inline-flex; align-items: baseline; gap: 6px; flex-wrap: wrap }
+.hp-dates b { font-size: 16px; font-family: var(--f-num) }
+.hp-left { font-size: 13px; font-weight: 700; color: var(--ok) }
+.hp-left.soon { color: var(--warn) }
+.hp-period-main .btn { margin-left: auto }
+.hp-period-edit { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px }
+.hp-period-edit .hope-period { margin-left: 0 }
+.summary.hp-sum { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) }
+.budgetbar.ok i { background: var(--ok) }
+.hp-names { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px }
+.nchip { display: inline-block; font-size: 12.5px; padding: 3px 10px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap }
+.nchip.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; font-weight: 600 }
+.hp-lowlist { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px }
+.hp-lowlist button { all: unset; cursor: pointer; font-family: var(--f-num); font-size: 12.5px; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); font-weight: 600 }
+.sw.nohope { background: var(--surface); border: 1px solid var(--line) } .sw.unsub { background: repeating-linear-gradient(45deg, var(--ng), var(--ng) 3px, var(--surface) 3px, var(--surface) 6px) }
+.hgrid td.hc { height: 46px; min-width: 52px; text-align: center; vertical-align: middle; padding: 3px }
+.hgrid td.hc.on { background: var(--hope) }
+.hgrid .hv { display: inline-flex; flex-direction: column; line-height: 1.15; font-size: 12px; font-weight: 700; color: var(--ok) }
+.hgrid .hv span:last-child::before { content: "〜"; font-weight: 400; font-size: 10px; display: block; line-height: .8; color: var(--muted) }
+.hgrid tr.unsub td.hc { background: repeating-linear-gradient(45deg, var(--ng), var(--ng) 3px, transparent 3px, transparent 8px) }
+.hgrid tr.unsub .staffc b { color: var(--muted) }
+.hgrid .dh { min-width: 52px }
+.hp-dh { all: unset; cursor: pointer; display: block; width: 100%; padding: 4px 0 }
+.hp-dh:hover b { text-decoration: underline }
+.hgrid tbody tr:hover th.sc, .hgrid tbody tr:hover td { box-shadow: inset 0 -2px 0 var(--accent-soft) }
+tfoot td.hp-f { font-weight: 700 }
+tfoot td.hp-f.zero { background: var(--bad-soft); color: var(--bad) }
+tfoot td.hp-f.low { background: var(--warn-soft); color: var(--warn) }
+tfoot td.hp-f.ok { color: var(--ok) }
+.dstrip button i.hp-n.zero { color: var(--bad); font-weight: 700 } .dstrip button i.hp-n.low { color: var(--warn); font-weight: 700 } .dstrip button i.hp-n.ok { color: var(--ok) }
+.hp-daycount { font-size: 14px; padding: 6px 10px; border-radius: 9px; background: var(--ok-soft); color: var(--ok); width: max-content }
+.hp-daycount b { font-size: 18px; margin: 0 2px }
+.hp-daycount.low { background: var(--warn-soft); color: var(--warn) } .hp-daycount.zero { background: var(--bad-soft); color: var(--bad) }
+@media (max-width: 760px) {
+  .summary.hp-sum { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .hp-period-main .btn { margin-left: 0; width: 100% }
+  .hp-dates b { font-size: 15px }
+}
