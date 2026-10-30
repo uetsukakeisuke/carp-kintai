@@ -40,7 +40,7 @@ export function Shell({ user, manager, area, badges, children }: {
             <summary aria-label="メニュー">{user.name}</summary>
             <div className="menu">
               <div className="who-name">{user.name} さん</div>
-              <Link href="/pin">パスワード（4桁）を変える</Link>
+              {manager && <Link href="/pin">パスワード（4桁）を変える</Link>}
               <form action={logoutAction}><button type="submit">ログアウト</button></form>
             </div>
           </details>

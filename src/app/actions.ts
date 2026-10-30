@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import {
   login, logout, changePin, requireUser, requireManager, resetPin, verifyPin, currentTerminal, enableTerminal, disableTerminal,
-  hashPin, INITIAL_PIN, isManager,
+  hashPin, INITIAL_PIN, isManager, punchCodeOk,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages } from '@/lib/data';
@@ -17,8 +17,8 @@ const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{
 const isMin = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 1800;
 
 // ---------- ログイン ----------
-export async function loginAction(staffId: number, pin: string): Promise<Result> {
-  const r = await login(Number(staffId), String(pin));
+export async function loginAction(staffId: number, pin: string | null): Promise<Result & { needPin?: boolean }> {
+  const r = await login(Number(staffId), pin === null ? null : String(pin));
   if (!r.ok) return r;
   redirect(r.mustChange ? '/pin' : '/');
 }
@@ -38,29 +38,31 @@ function punchMessage(kind: PunchKind, minute: number) {
   const h = Math.floor(minute / 60), m = String(minute % 60).padStart(2, '0');
   return `${PUNCH_LABEL[kind]} ${h}:${m} を記録しました`;
 }
-export async function punchAction(kind: PunchKind): Promise<Result> {
+const CODE_ERR = '打刻コードが違います。もう一度入力してください。';
+export async function punchAction(kind: PunchKind, code: string): Promise<Result> {
   const u = await requireUser();
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
+  if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
   const r = await recordPunch(u.id, kind, 'mobile');
   revalidatePath('/me');
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) } : r;
 }
 
-/** 店舗端末：本人のパスワードを確かめてから、その人の今日の状態を返す */
-export async function terminalStateAction(staffId: number, pin: string) {
+/** 店舗端末：打刻コードを確かめてから、その人の今日の状態を返す */
+export async function terminalStateAction(staffId: number, code: string) {
   const t = await currentTerminal();
   if (!t) return { ok: false as const, error: 'この端末は店舗端末として設定されていません' };
-  const r = await verifyPin(Number(staffId), String(pin));
-  if (!r.ok) return r;
+  if (!punchCodeOk(code)) return { ok: false as const, error: CODE_ERR };
   const day = await resolveWorkDay(Number(staffId));
   return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })) };
 }
-export async function terminalPunchAction(staffId: number, pin: string, kind: PunchKind): Promise<Result> {
+export async function terminalPunchAction(staffId: number, code: string, kind: PunchKind): Promise<Result> {
   const t = await currentTerminal();
   if (!t) return { ok: false, error: 'この端末は店舗端末として設定されていません' };
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
-  const v = await verifyPin(Number(staffId), String(pin));
-  if (!v.ok) return v;
+  if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
+  const [s] = await sql<{ id: number }[]>`select id from staff where id = ${Number(staffId)} and active`;
+  if (!s) return { ok: false, error: 'このスタッフは利用できません' };
   const r = await recordPunch(Number(staffId), kind, 'terminal');
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) } : r;
 }
@@ -150,7 +152,7 @@ export async function saveStaffAction(id: number | null, input: StaffInput): Pro
     await sql`insert into wage_rates (staff_id, effective_from, hourly, created_by) values (${s.id}, ${input.wageFrom}, ${input.hourly}, ${u.id})`;
     await audit(u.id, 'staff_create', { id: s.id, name });
     revalidatePath('/manage/staff');
-    return { ok: true, message: `${name}さんを登録しました（初期パスワード ${INITIAL_PIN}）` };
+    return { ok: true, message: `${name}さんを登録しました` };
   }
   await sql`update staff set name = ${name}, kana = ${input.kana || null}, employment = ${input.employment || 'ﾊﾟｰﾄ'}, store_id = ${input.storeId},
     transport_per_day = ${transport}, commute_means = ${input.commuteMeans || null},

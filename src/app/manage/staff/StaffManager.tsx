@@ -51,7 +51,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
         <Link className="btn ghost" href={showAll ? '/manage/staff' : '/manage/staff?all=1'}>{showAll ? '在籍中だけ表示' : '退職者も表示'}</Link>
       </div>
       <div className="grid-wrap"><table className="tbl stack" style={{ minWidth: 820 }}>
-        <thead><tr><th>スタッフ</th><th>所属</th><th>権限</th><th>現在の時給</th><th>予定の改定</th><th>交通費／日</th><th>パスワード</th><th></th></tr></thead>
+        <thead><tr><th>スタッフ</th><th>所属</th><th>権限</th><th>現在の時給</th><th>予定の改定</th><th>交通費／日</th><th>ログイン</th><th></th></tr></thead>
         <tbody>
           {staff.map((s) => (
             <tr key={s.id} style={s.active ? undefined : { opacity: .55 }}>
@@ -61,7 +61,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
               <td data-label="現在の時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
               <td data-label="予定の改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
               <td data-label="交通費／日" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
-              <td data-label="パスワード">{s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">設定済み</span>}</td>
+              <td data-label="ログイン" className={s.role === 'staff' ? 'hide-sp' : ''}>{s.role === 'staff' ? <span className="sub">名前だけ</span> : s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">パスワード設定済み</span>}</td>
               <td className="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {s.payType === 'hourly' && <button className="btn" onClick={() => { setErr(''); setWage({ s, from: today, hourly: s.wage ?? minWage.now }); }}>時給</button>}{' '}
                 <button className="btn" onClick={() => { setErr(''); setEdit({ id: s.id, name: s.name, kana: s.kana, storeId: s.storeId, employment: s.employment, transport: s.transport, commuteMeans: s.commuteMeans, role: s.role, active: s.active }); }}>編集</button>
@@ -93,7 +93,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
         <div className="scrim" onClick={(e) => e.target === e.currentTarget && setEdit(null)}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="et">
             <h3 id="et">{edit.id === null ? 'スタッフを追加' : `${edit.name} の情報`}</h3>
-            <p className="meta">{edit.id === null ? '登録すると、初期パスワード 1111 でログインできます。' : ''}</p>
+            <p className="meta">{edit.id === null ? '登録すると、ログイン画面で名前を押すだけで使えます。店長・管理者にした場合は初期パスワード 1111 でログインします。' : ''}</p>
             <div className="formgrid">
               <label htmlFor="en">氏名</label><input id="en" className="in" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
               <label htmlFor="ek">ふりがな</label><input id="ek" className="in" value={edit.kana} onChange={(e) => setEdit({ ...edit, kana: e.target.value })} />
@@ -113,7 +113,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
             {err && <p className="err">{err}</p>}
             <div className="actions">
               {edit.id !== null && <>
-                <button className="btn left" disabled={pending} onClick={() => run(() => resetPinAction(edit.id!), () => setEdit(null))}>パスワードを1111に戻す</button>
+                {edit.role !== 'staff' && <button className="btn left" disabled={pending} onClick={() => run(() => resetPinAction(edit.id!), () => setEdit(null))}>パスワードを1111に戻す</button>}
                 <button className="btn danger" disabled={pending} onClick={() => run(() => saveStaffAction(edit.id, { ...edit, active: !edit.active }), () => setEdit(null))}>{edit.active ? '退職にする' : '在籍に戻す'}</button>
               </>}
               <button className="btn" onClick={() => setEdit(null)}>キャンセル</button>

@@ -56,8 +56,27 @@ export async function verifyPin(staffId: number, pin: string): Promise<{ ok: tru
   return { ok: true, mustChange: s.pin_must_change };
 }
 
-export async function login(staffId: number, pin: string) {
-  const r = await verifyPin(staffId, pin);
+/** 打刻コード（全員共通）。環境変数 PUNCH_CODE で変えられる。既定は 1111 */
+export function punchCodeOk(code: string) {
+  return String(code) === (process.env.PUNCH_CODE || INITIAL_PIN);
+}
+
+/** スタッフは名前を選ぶだけでログイン。店長・管理者は自分のパスワードが必要。 */
+export async function needsPin(staffId: number): Promise<boolean> {
+  const [s] = await sql<{ role: Role }[]>`select role from staff where id = ${staffId} and active`;
+  return !s || s.role !== 'staff';
+}
+
+export async function login(staffId: number, pin: string | null) {
+  const pinRequired = await needsPin(staffId);
+  let r: { ok: true; mustChange: boolean } | { ok: false; error: string };
+  if (pinRequired) {
+    if (pin === null) return { ok: false as const, error: 'パスワードを入力してください', needPin: true };
+    r = await verifyPin(staffId, pin);
+  } else {
+    const [s] = await sql<{ id: number }[]>`select id from staff where id = ${staffId} and active`;
+    r = s ? { ok: true, mustChange: false } : { ok: false, error: 'このスタッフは利用できません。店長に確認してください。' };
+  }
   if (!r.ok) return r;
   const token = randomBytes(32).toString('base64url');
   await sql`insert into sessions (token_hash, kind, staff_id, expires_at)
@@ -87,7 +106,7 @@ export async function currentUser(): Promise<User | null> {
 export async function requireUser(opts: { allowMustChange?: boolean } = {}): Promise<User> {
   const u = await currentUser();
   if (!u) redirect('/login');
-  if (u.pin_must_change && !opts.allowMustChange) redirect('/pin');
+  if (u.pin_must_change && u.role !== 'staff' && !opts.allowMustChange) redirect('/pin');
   return u;
 }
 

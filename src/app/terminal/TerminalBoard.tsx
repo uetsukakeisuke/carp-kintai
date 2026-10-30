@@ -50,7 +50,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
         <button className="btn ghost" onClick={() => setAdmin(true)}>端末の設定</button>
       </div>
       <Clock />
-      <p className="sub" style={{ textAlign: 'center', marginTop: 0 }}>自分の名前を押して、4桁のパスワードを入れてください。</p>
+      <p className="sub" style={{ textAlign: 'center', marginTop: 0 }}>自分の名前を押して、打刻コード（4桁）を入れてください。</p>
       <div className="termgrid">
         {rows.map((r) => (
           <button key={r.id} className="tcard" onClick={() => setSel(r)}>
@@ -66,7 +66,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
             <h3 id="tm">{sel.name}さん</h3>
             {punches === null ? (
               <>
-                <p className="meta">パスワード（4桁）を入れてください</p>
+                <p className="meta">打刻コード（4桁）を入れてください</p>
                 <Keypad value={pin} onChange={setPin} onDone={check} disabled={pending} />
               </>
             ) : (

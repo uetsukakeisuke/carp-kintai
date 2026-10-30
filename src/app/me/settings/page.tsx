@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireUser } from '@/lib/auth';
+import { requireUser, isManager } from '@/lib/auth';
 import { logoutAction } from '@/app/actions';
 
 export default async function SettingsPage() {
@@ -7,9 +7,11 @@ export default async function SettingsPage() {
   return (
     <div className="narrow" style={{ display: 'grid', gap: 12 }}>
       <div className="card"><b>{u.name} さん</b></div>
+{isManager(u) && (
       <div className="card row" style={{ justifyContent: 'space-between', minHeight: 64 }}>
         <span>パスワード（4桁）を変える</span><Link className="btn" href="/pin">変更する</Link>
       </div>
+      )}
       <div className="card">
         <b>スマホのホーム画面に追加する</b>
         <ul className="sub" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
