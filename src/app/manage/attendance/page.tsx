@@ -5,6 +5,7 @@ import { jstParts, addDays, dateLabel, hm, yen, WD, weekday } from '@/lib/time';
 import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { ActionButton } from '@/components/ActionButton';
 import { decideCorrectionAction } from '@/app/actions';
+import { EditPunchesButton, AddAttendance } from './PunchEditor';
 
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ d?: string; store?: string }> }) {
   const sp = await searchParams;
@@ -62,10 +63,17 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           </tbody></table></div>
         </>
       )}
-      {missing.length > 0 && <div className="banner bad"><span><b>退勤の打刻がない勤務が{missing.length}件あります。</b>　本人に修正申請をしてもらうか、確認してください：{missing.slice(0, 6).map((x) => `${x.name} ${dateLabel(x.date)}`).join('、')}{missing.length > 6 ? ' ほか' : ''}</span></div>}
+      {missing.length > 0 && <div className="banner bad"><span><b>退勤の打刻がない勤務が{missing.length}件あります。</b>　押すとその日に移ります。「直す」で退勤を入れてください：{missing.slice(0, 8).map((x, i) => <span key={i}>{i ? '、' : ''}<Link href={`/manage/attendance?store=${store?.id}&d=${x.date}`}>{x.name} {dateLabel(x.date)}</Link></span>)}{missing.length > 8 ? ' ほか' : ''}</span></div>}
       <div className="chips" style={{ marginBottom: 10 }}>
         {stores.length > 1 && stores.map((s) => <Link key={s.id} className={`btn${s.id === store?.id ? ' primary' : ''}`} href={`/manage/attendance?store=${s.id}&d=${d}`}>{s.name}</Link>)}
       </div>
+      <form className="row" style={{ gap: 8, marginBottom: 8 }} action="/manage/attendance">
+        <input type="hidden" name="store" value={store?.id} />
+        <Link className="btn" href={`/manage/attendance?store=${store?.id}&d=${addDays(d, -1)}`} aria-label="前の日">‹</Link>
+        <input className="in" type="date" name="d" defaultValue={d} max={now.date} aria-label="日付" />
+        <Link className="btn" href={`/manage/attendance?store=${store?.id}&d=${addDays(d, 1)}`} aria-label="次の日">›</Link>
+        <button className="btn" type="submit">表示</button>
+      </form>
       <div className="daystrip">
         {strip.map((k) => <Link key={k} href={`/manage/attendance?store=${store?.id}&d=${k}`} aria-current={k === d ? 'true' : undefined}><b>{Number(k.slice(8))}</b><small>{k === now.date ? '今日' : WD[weekday(k)]}</small></Link>)}
       </div>
@@ -76,7 +84,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         <div className="card"><div className="k">未出勤</div><div className={`mid num ${rows.some((r) => r.sum.state === 'absent') ? 'warn-t' : 'ok-t'}`}>{rows.filter((r) => r.sum.state === 'absent').length}人</div></div>
       </section>
       <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 760 }}>
-        <thead><tr><th>スタッフ</th><th>予定</th><th>打刻</th><th>休憩</th><th>実働</th><th>状態</th><th>人件費</th></tr></thead>
+        <thead><tr><th>スタッフ</th><th>予定</th><th>打刻</th><th>休憩</th><th>実働</th><th>状態</th><th>人件費</th><th /></tr></thead>
         <tbody>
           {rows.map(({ s, ps, sh, sum, cost, flags }) => (
             <tr key={s.id}>
@@ -87,12 +95,22 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
               <td data-label="実働" className={`num${sum.firstIn !== null ? '' : ' hide-sp'}`}>{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>
               <td data-label="状態" className="wrap amt"><span style={{ marginLeft: 'auto' }}><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</span></td>
               <td data-label="人件費" className={`num${cost ? '' : ' hide-sp'}`}>{cost ? yen(cost) : '—'}</td>
+              <td className="acts" style={{ textAlign: 'right' }}>
+                <EditPunchesButton staffId={s.id} name={s.name} date={d} dateText={dateLabel(d)} punches={ps.map((p) => ({ id: Number(p.id), kind: p.kind, minute: p.minute }))} plan={sh ? { start: sh.start_min, end: sh.end_min } : null} />
+              </td>
             </tr>
           ))}
-          {!rows.length && <tr><td colSpan={7} className="sub">この日の予定・打刻はありません</td></tr>}
+          {!rows.length && <tr><td colSpan={8} className="sub">この日の予定・打刻はありません</td></tr>}
         </tbody>
       </table></div>
-      <p className="sub" style={{ marginTop: 12 }}>打刻の記録は直接書き換えず、修正申請の承認で直します。修正前の時刻は「修正済み」に触れると確認できます。</p>
+      {staff.some((s) => !rows.some((r) => r.s.id === s.id)) && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <b>予定にない人の勤務を入れる</b>
+          <p className="sub" style={{ margin: '4px 0 8px' }}>{dateLabel(d)}にシフトがなく打刻もない人の勤務を、管理者が入れます。</p>
+          <AddAttendance staff={staff.filter((s) => !rows.some((r) => r.s.id === s.id)).map((s) => ({ id: s.id, name: s.name }))} date={d} dateText={dateLabel(d)} />
+        </div>
+      )}
+      <p className="sub" style={{ marginTop: 12 }}>「直す」で管理者が打刻を直接直せます（スタッフからの修正申請の承認でも直ります）。直した打刻は「修正済み」と表示され、触れると修正前の時刻と理由を確認できます。</p>
     </>
   );
 }

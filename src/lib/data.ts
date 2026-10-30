@@ -166,3 +166,29 @@ export async function publishedShifts(from: string, to: string, opts: { storeId?
       and (${opts.staffId ?? null}::int is null or staff_id = ${opts.staffId ?? null})
     order by work_date, start_min`;
 }
+
+// ---------------- 管理者による勤怠の直接修正 ----------------
+/** その日の打刻を、指定した内容にそろえる（変えた打刻は修正前の時刻を残し、消した打刻は無効にする。記録は消さない） */
+export async function replaceDayPunches(actorId: number, staffId: number, date: string, items: { id?: number | null; kind: PunchKind; minute: number }[], reason: string) {
+  const before = (await sql<{ id: string | number; kind: PunchKind; minute: number }[]>`
+    select id, kind, minute from punches where staff_id = ${staffId} and work_date = ${date} and not voided order by minute, id`).map((p) => ({ ...p, id: Number(p.id) }));
+  await sql.begin(async (tx) => {
+    const [st] = await tx<{ store_id: number | null }[]>`select store_id from staff where id = ${staffId}`;
+    const keep = new Set(items.filter((i) => i.id).map((i) => Number(i.id)));
+    for (const p of before) {
+      if (!keep.has(p.id)) await tx`update punches set voided = true, correction_reason = ${reason} where id = ${p.id}`;
+    }
+    for (const it of items) {
+      const old = it.id ? before.find((p) => p.id === Number(it.id)) : undefined;
+      if (old) {
+        if (old.kind !== it.kind || old.minute !== it.minute) {
+          await tx`update punches set kind = ${it.kind}, minute = ${it.minute}, original_minute = coalesce(original_minute, ${old.minute}), correction_reason = ${reason} where id = ${old.id}`;
+        }
+      } else {
+        await tx`insert into punches (staff_id, store_id, work_date, kind, minute, via, correction_reason)
+          values (${staffId}, ${st?.store_id ?? null}, ${date}, ${it.kind}, ${it.minute}, 'admin', ${reason})`;
+      }
+    }
+  });
+  await audit(actorId, 'punches_edited', { staffId, date, reason, before: before.map((p) => [p.kind, p.minute]), after: items.map((i) => [i.kind, i.minute]) });
+}

@@ -6,8 +6,8 @@ import {
   hashPin, INITIAL_PIN, isManager, punchCodeOk,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
-import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages } from '@/lib/data';
-import { minWageAt, type PunchKind } from '@/lib/calc';
+import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
+import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 
@@ -304,4 +304,23 @@ export async function resetSlipPinAction(staffId: number): Promise<Result> {
   const u = await requireManager();
   await resetSlipPin(u.id, Number(staffId));
   return { ok: true, message: '明細の暗証番号を消しました。本人が次に開くときに決め直します' };
+}
+
+// ---------- 管理者による勤怠の修正 ----------
+export async function editPunchesAction(staffId: number, date: string, items: { id?: number | null; kind: PunchKind; minute: number }[], reason: string): Promise<Result> {
+  const u = await requireManager();
+  if (!isDate(date)) return { ok: false, error: '日付が正しくありません' };
+  if (!Array.isArray(items) || items.length > 20) return { ok: false, error: '打刻の内容が正しくありません' };
+  for (const it of items) if (!KINDS.includes(it.kind) || !isMin(it.minute)) return { ok: false, error: '打刻の内容が正しくありません' };
+  const sorted = [...items].sort((a, b) => a.minute - b.minute);
+  for (let i = 1; i < sorted.length; i++) if (sorted[i].minute === sorted[i - 1].minute) return { ok: false, error: '同じ時刻の打刻が2つあります' };
+  const seq: { kind: PunchKind; minute: number }[] = [];
+  for (const it of sorted) {
+    if (!canPunch(seq, it.kind)) return { ok: false, error: `打刻の順番が正しくありません（${PUNCH_LABEL[it.kind]} ${Math.floor(it.minute / 60)}:${String(it.minute % 60).padStart(2, '0')}）。出勤 →（休憩開始 → 休憩終了）→ 退勤 の順にしてください` };
+    seq.push(it);
+  }
+  const why = String(reason ?? '').trim().slice(0, 200) || '管理者が修正';
+  await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
+  revalidatePath('/manage/attendance');
+  return { ok: true, message: '勤怠を直しました' };
 }

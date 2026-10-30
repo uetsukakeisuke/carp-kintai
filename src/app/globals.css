@@ -621,3 +621,10 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-top: 10px }
 .pinrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px }
 .pinrow b.num { font-size: 18px; letter-spacing: .15em }
+
+/* 管理者の勤怠修正 */
+.pe-rows { display: grid; gap: 8px; margin-top: 4px }
+.pe-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 6px; align-items: center }
+.pe-row .sel { width: 100%; min-width: 0; padding-left: 8px; padding-right: 4px }
+.pe-del { min-width: 44px; padding: 0; font-size: 18px; color: var(--bad) }
+.scrim { text-align: left }
