@@ -47,12 +47,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       {pending.length > 0 && (
         <>
           <h2 className="sec" style={{ marginTop: 0 }}>打刻修正の申請（{pending.length}件）</h2>
-          <div className="grid-wrap" style={{ marginBottom: 16 }}><table className="tbl"><tbody>
+          <div className="grid-wrap" style={{ marginBottom: 16 }}><table className="tbl stack"><tbody>
             {pending.map((q) => (
               <tr key={q.id}>
-                <td><b>{q.staff_name}</b><div className="sub">{dateLabel(q.work_date)}</div></td>
-                <td><b>{PUNCH_LABEL[q.kind]}</b> を <span className="num">{hm(q.minute)}</span> に<div className="sub">理由：{q.reason}</div></td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td className="head"><b>{q.staff_name}</b><span className="sub">{dateLabel(q.work_date)}</span></td>
+                <td data-label="修正内容"><span><b>{PUNCH_LABEL[q.kind]}</b> を <span className="num">{hm(q.minute)}</span> に</span></td>
+                <td data-label="理由" className="wrap"><span className="sub" style={{ marginLeft: 'auto' }}>{q.reason}</span></td>
+                <td className="acts" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <ActionButton action={decideCorrectionAction.bind(null, q.id, false)}>却下</ActionButton>{' '}
                   <ActionButton className="btn primary" action={decideCorrectionAction.bind(null, q.id, true)}>承認する</ActionButton>
                 </td>
@@ -62,30 +63,30 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         </>
       )}
       {missing.length > 0 && <div className="banner bad"><span><b>退勤の打刻がない勤務が{missing.length}件あります。</b>　本人に修正申請をしてもらうか、確認してください：{missing.slice(0, 6).map((x) => `${x.name} ${dateLabel(x.date)}`).join('、')}{missing.length > 6 ? ' ほか' : ''}</span></div>}
-      <div className="row" style={{ marginBottom: 10 }}>
+      <div className="chips" style={{ marginBottom: 10 }}>
         {stores.map((s) => <Link key={s.id} className={`btn${s.id === store?.id ? ' primary' : ''}`} href={`/manage/attendance?store=${s.id}&d=${d}`}>{s.name}</Link>)}
       </div>
       <div className="daystrip">
         {strip.map((k) => <Link key={k} href={`/manage/attendance?store=${store?.id}&d=${k}`} aria-current={k === d ? 'true' : undefined}><b>{Number(k.slice(8))}</b><small>{k === now.date ? '今日' : WD[weekday(k)]}</small></Link>)}
       </div>
-      <section className="summary">
+      <section className="summary s4">
         <div className="card"><div className="k">{dateLabel(d)}の実績人件費{d === now.date ? '（現在まで）' : ''}</div><div className="big num">{yen(totalCost)}<small>／予定 {yen(totalPlan)}</small></div></div>
         <div className="card"><div className="k">勤務中・休憩中</div><div className="mid num">{rows.filter((r) => r.sum.state === 'working' || r.sum.state === 'break').length}人</div></div>
         <div className="card"><div className="k">退勤の打刻なし</div><div className={`mid num ${rows.some((r) => r.sum.state === 'missing') ? 'bad-t' : 'ok-t'}`}>{rows.filter((r) => r.sum.state === 'missing').length}件</div></div>
         <div className="card"><div className="k">未出勤</div><div className={`mid num ${rows.some((r) => r.sum.state === 'absent') ? 'warn-t' : 'ok-t'}`}>{rows.filter((r) => r.sum.state === 'absent').length}人</div></div>
       </section>
-      <div className="grid-wrap"><table className="tbl" style={{ minWidth: 760 }}>
+      <div className="grid-wrap"><table className="tbl stack" style={{ minWidth: 760 }}>
         <thead><tr><th>スタッフ</th><th>予定</th><th>打刻</th><th>休憩</th><th>実働</th><th>状態</th><th>人件費</th></tr></thead>
         <tbody>
           {rows.map(({ s, ps, sh, sum, cost, flags }) => (
             <tr key={s.id}>
-              <td><b>{s.name}</b></td>
-              <td className="num">{sh ? `${hm(sh.start_min)}〜${hm(sh.end_min)}` : '—'}</td>
-              <td><PunchLog punches={ps} /></td>
-              <td className="num">{sum.breakMin ? `${sum.breakMin}分` : '—'}</td>
-              <td className="num">{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>
-              <td><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</td>
-              <td className="num">{cost ? yen(cost) : '—'}</td>
+              <td className="head"><b>{s.name}</b></td>
+              <td data-label="予定" className="num">{sh ? `${hm(sh.start_min)}〜${hm(sh.end_min)}` : '—'}</td>
+              <td data-label="打刻" className="wrap"><span style={{ marginLeft: 'auto' }}><PunchLog punches={ps} /></span></td>
+              <td data-label="休憩" className={`num${sum.breakMin ? '' : ' hide-sp'}`}>{sum.breakMin ? `${sum.breakMin}分` : '—'}</td>
+              <td data-label="実働" className={`num${sum.firstIn !== null ? '' : ' hide-sp'}`}>{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>
+              <td data-label="状態" className="wrap"><span style={{ marginLeft: 'auto' }}><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</span></td>
+              <td data-label="人件費" className={`num${cost ? '' : ' hide-sp'}`}>{cost ? yen(cost) : '—'}</td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={7} className="sub">この日の予定・打刻はありません</td></tr>}

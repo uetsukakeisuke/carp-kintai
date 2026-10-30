@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveShiftAction, deleteShiftAction, publishAction } from '@/app/actions';
 import { planCost, wageAt, minWageAt, type WageRate, type MinWage } from '@/lib/calc';
@@ -32,6 +32,21 @@ export function ShiftBoard(p: {
   const [ed, setEd] = useState<{ staffId: number; d: number; s: number; e: number; had: boolean } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [day, setDay] = useState<number | null>(null);
+  const [view, setView] = useState<'month' | 'day'>('month');
+  const [sel, setSel] = useState(1);
+  useEffect(() => {
+    // スマホは「日ごと」表示から始める（前回の選択を覚えておく）
+    let v: string | null = null;
+    try { v = localStorage.getItem('kintai-shift-view'); } catch {}
+    setView(v === 'day' || v === 'month' ? v : window.innerWidth < 761 ? 'day' : 'month');
+    const t = new Date(); if (t.getFullYear() === p.year && t.getMonth() + 1 === p.month) setSel(t.getDate());
+  }, [p.year, p.month]);
+  useEffect(() => {
+    // 選んだ日を日付の帯の中央に寄せる（ページ全体はスクロールさせない）
+    const el = document.getElementById(`ds-${sel}`), box = el?.parentElement;
+    if (el && box) box.scrollTo({ left: el.offsetLeft - box.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
+  }, [sel, view]);
+  const changeView = (v: 'month' | 'day') => { setView(v); try { localStorage.setItem('kintai-shift-view', v); } catch {} };
 
   const rate = (id: number, date: string) => wageAt(p.rates[id] ?? [], date) ?? 0;
   const budgetOf = (d: number) => { const o = p.budgets.find((b) => b.work_date === key(d)); if (o) return o.amount; const w = wd(d); return w === 0 || w === 6 ? p.store.budget[2] : w === 5 ? p.store.budget[1] : p.store.budget[0]; };
@@ -87,20 +102,74 @@ export function ShiftBoard(p: {
   return (
     <>
       {lowWage.length > 0 && <div className="banner warn"><span><b>{lowWage.map((s) => s.name).join('、')} の時給が最低賃金を下回っています。</b>　予定人件費もこの時給で計算しています。</span><a className="btn" href="/manage/staff">時給を見直す</a></div>}
-      <section className="summary" style={{ gridTemplateColumns: 'minmax(0,2.2fr) repeat(3,minmax(0,1fr)) auto' }} aria-label="人件費のサマリー">
+      <section className="summary ssum" style={{ gridTemplateColumns: 'minmax(0,2.2fr) repeat(3,minmax(0,1fr)) auto' }} aria-label="人件費のサマリー">
         <div className="card">
           <div className="k">{p.month}月の予定人件費（下書き含む・リアルタイム）</div>
           <div className="big num">{yen(totals.cost)}<small>／予算 {yen(budget)}</small></div>
           <div className={`budgetbar${ratio > 1 ? ' over' : ''}`}><i style={{ width: `${Math.min(ratio, 1) * 100}%` }} /></div>
           <div className="row sub" style={{ justifyContent: 'space-between', marginTop: 4 }}><span>入力済み {filled}日／{nd}日</span><span>予算残 <b className="num">{yen(budget - totals.cost)}</b></span></div>
         </div>
-        <div className="card"><div className="k">入力済みの日の予算比</div><div className={`mid num ${pace > 1 ? 'bad-t' : pace > .95 ? 'warn-t' : 'ok-t'}`}>{(pace * 100).toFixed(1)}%</div><div className="sub">月予算比 {(ratio * 100).toFixed(1)}%</div></div>
+        <div className="card"><div className="k">入力済の日の予算比</div><div className={`mid num ${pace > 1 ? 'bad-t' : pace > .95 ? 'warn-t' : 'ok-t'}`}>{(pace * 100).toFixed(1)}%</div><div className="sub">月予算比 {(ratio * 100).toFixed(1)}%</div></div>
         <div className="card"><div className="k">予算超過の日</div><div className={`mid num ${overDays ? 'bad-t' : 'ok-t'}`}>{overDays}日</div></div>
-        <div className="card"><div className="k">総労働時間</div><div className="mid num">{(totals.work / 60).toFixed(1)}h</div><div className="sub">希望外のシフト {mis}件</div></div>
+        <div className="card"><div className="k">総労働時間</div><div className="mid num">{(totals.work / 60).toFixed(1)}h</div><div className="sub">希望外 {mis}件</div></div>
         <div className="card" style={{ display: 'grid', gap: 8, alignContent: 'center' }}>{pill}
           {status !== 'published' ? <button className="btn primary" onClick={() => setConfirm(true)} disabled={pending}>{status === 'draft' ? 'シフトを確定・公開' : '変更を公開'}</button> : <button className="btn" disabled>公開済み</button>}</div>
       </section>
-      <div className="legend"><span><i className="sw hope" />出勤希望</span><span><i className="sw shift" />シフト</span><span><i className="sw warnb" />希望とずれている</span><span style={{ marginLeft: 'auto' }}>マスを押して入力。日付を押すと1日の配置を表示</span></div>
+      <div className="legend">
+        <span><i className="sw hope" />出勤希望</span><span><i className="sw shift" />シフト</span><span><i className="sw warnb" />希望とずれている</span>
+        <span className="seg viewtoggle" role="group" aria-label="表示の切り替え">
+          <a href="#" onClick={(e) => { e.preventDefault(); changeView('day'); }} aria-current={view === 'day' ? 'page' : undefined}>日ごと</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); changeView('month'); }} aria-current={view === 'month' ? 'page' : undefined}>月の表</a>
+        </span>
+      </div>
+      {view === 'day' && (() => {
+        const d = sel, w = wd(d);
+        const people = p.staff.map((st) => ({ st, sh: get(st.id, d), h: hopes[`${st.id}|${key(d)}`] }))
+          .sort((a, b) => Number(!!b.sh) - Number(!!a.sh) || Number(!!b.h) - Number(!!a.h) || (a.sh?.s ?? a.h?.s ?? 9999) - (b.sh?.s ?? b.h?.s ?? 9999));
+        const c = totals.dayCost[d], bd = budgetOf(d);
+        return (
+          <div className="dayview">
+            <div className="dstrip" role="group" aria-label="日付を選ぶ">
+              {Array.from({ length: nd }, (_, i) => i + 1).map((x) => (
+                <button key={x} type="button" className={wd(x) === 6 ? 'sat' : wd(x) === 0 ? 'sun' : ''} aria-pressed={x === d} onClick={() => setSel(x)}
+                  id={`ds-${x}`}>
+                  <b>{x}</b><small>{WD[wd(x)]}</small>
+                  <i className={totals.dayCost[x] > budgetOf(x) ? 'over' : ''}>{totals.dayN[x] ? `${totals.dayN[x]}人` : '—'}</i>
+                </button>
+              ))}
+            </div>
+            <div className="daycard">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <b>{p.month}/{d}（{WD[w]}）</b>
+                <span className="row">
+                  <button className="btn" style={{ minWidth: 48 }} type="button" disabled={d <= 1} onClick={() => setSel(d - 1)} aria-label="前の日">‹</button>
+                  <button className="btn" style={{ minWidth: 48 }} type="button" disabled={d >= nd} onClick={() => setSel(d + 1)} aria-label="次の日">›</button>
+                </span>
+              </div>
+              <div className="kv">
+                <div><span>予定人件費</span><b className={c > bd ? 'bad-t' : ''}>{yen(c)}</b></div>
+                <div><span>日予算</span><b>{yen(bd)}</b></div>
+                <div><span>{c > bd ? '予算超過' : '残り'}</span><b className={c > bd ? 'bad-t' : 'ok-t'}>{yen(Math.abs(bd - c))}</b></div>
+                <div><span>人数</span><b>{totals.dayN[d]}人</b></div>
+              </div>
+              {totals.dayN[d] > 0 && <Timeline rows={p.staff.filter((st) => get(st.id, d)).map((st) => ({ id: st.id, name: st.name, start: get(st.id, d)!.s, end: get(st.id, d)!.e }))} />}
+            </div>
+            <div className="list">
+              {people.map(({ st, sh, h }) => (
+                <button key={st.id} type="button" className={`prow${h ? ' hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}${!sh && !h ? ' off' : ''}`} onClick={() => open(st.id, d)}>
+                  <span>
+                    <span className="nm">{st.name}</span><br />
+                    <span className={`meta2${h ? ' ok' : ''}`}>{h ? `希望 ${hm(h.s)}〜${hm(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}{mismatch(st.id, d) ? ' ・ 希望とずれています' : ''}</span>
+                  </span>
+                  {sh ? <span className="shiftv">{hm(sh.s)}〜{hm(sh.e)}</span> : <span className="addv">＋ 入れる</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+      {view === 'month' && <>
+      <p className="sub" style={{ margin: '0 0 6px' }}>マスを押して入力。日付を押すと1日の配置を表示</p>
       <div className="grid-wrap" style={{ maxHeight: '68vh' }}>
         <table className="sgrid">
           <thead><tr><th className="sc">スタッフ（時給）</th>
@@ -145,6 +214,7 @@ export function ShiftBoard(p: {
           <Timeline rows={p.staff.filter((st) => get(st.id, day)).map((st) => ({ id: st.id, name: st.name, start: get(st.id, day)!.s, end: get(st.id, day)!.e }))} />
         </div>
       )}
+      </>}
       <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間＋深夜割増（22時以降25%）＋1日8時間超の残業割増（25%）＋交通費。6時間超で45分、8時間超で60分の休憩を自動で差し引いています。</p>
 
       {ed && (() => {

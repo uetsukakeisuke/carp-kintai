@@ -36,10 +36,10 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
 
   return (
     <>
-      <div className="card row" style={{ marginBottom: 12 }}>
+      <div className="card" style={{ marginBottom: 12, display: 'grid', gap: 8 }}>
         <b>まとめて入力</b>
         <button className="btn" onClick={() => { for (let d = 1; d <= nd; d++) { const w = new Date(year, month - 1, d).getDay(); if (w > 0 && w < 6) set(key(d), last); } }}>平日すべてに {hm(last.start)}〜{hm(last.end)}</button>
-        <button className="btn ghost" onClick={() => { setHopes({}); setDirty(true); }}>すべて消す</button>
+        <button className="btn" onClick={() => { setHopes({}); setDirty(true); }}>すべて消す</button>
       </div>
       <div className="hope-list">
         {Array.from({ length: nd }, (_, i) => i + 1).map((d) => {
@@ -64,7 +64,7 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
         })}
       </div>
       <div className="submitbar">
-        <button className="btn primary" style={{ padding: '11px 20px', fontSize: 14 }} disabled={pending || !!bad} onClick={() => save(true)}>{submitted ? '修正を提出する' : '希望を提出する'}</button>
+        <button className="btn primary" style={{ flex: '1 1 auto', fontSize: 15 }} disabled={pending || !!bad} onClick={() => save(true)}>{submitted ? '修正を提出する' : '希望を提出する'}</button>
         {dirty && <button className="btn" disabled={pending} onClick={() => save(false)}>下書き保存</button>}
         <span className="sub">出勤希望 {list.length}日 ・ 合計 {(total / 60).toFixed(1)}時間</span>
       </div>

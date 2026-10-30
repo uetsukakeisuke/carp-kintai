@@ -31,11 +31,11 @@ export default async function AllShiftsPage({ searchParams }: { searchParams: Pr
     <div>
       <div className="narrow">
         <div className="calnav">
-          <Link className="btn ghost" href={`/me/shifts${q({ ym: prev })}`}>‹ 前の月</Link>
-          <h2>{y}年{m}月のシフト</h2>
-          <Link className="btn ghost" href={`/me/shifts${q({ ym: next })}`}>次の月 ›</Link>
+          <Link className="btn" href={`/me/shifts${q({ ym: prev })}`} aria-label="前の月">‹ 前月</Link>
+          <h2>{y}年{m}月</h2>
+          <Link className="btn" href={`/me/shifts${q({ ym: next })}`} aria-label="次の月">翌月 ›</Link>
         </div>
-        {stores.length > 1 && <div className="row" style={{ marginBottom: 10 }}>{stores.map((s) => <Link key={s.id} className={`btn${s.id === storeId ? ' primary' : ''}`} href={`/me/shifts?ym=${ym}&store=${s.id}`}>{s.name}</Link>)}</div>}
+        {stores.length > 1 && <div className="chips" style={{ marginBottom: 10 }}>{stores.map((s) => <Link key={s.id} className={`btn${s.id === storeId ? ' primary' : ''}`} href={`/me/shifts?ym=${ym}&store=${s.id}`}>{s.name}</Link>)}</div>}
         {!rows.length ? (
           <div className="empty"><b>{m}月のシフトはまだ公開されていません</b>店長がシフトを確定すると、ここで全員のシフトを見られます。</div>
         ) : (

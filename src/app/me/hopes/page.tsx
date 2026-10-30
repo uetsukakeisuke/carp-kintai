@@ -22,7 +22,7 @@ export default async function HopesPage({ searchParams }: { searchParams: Promis
   const months = [0, 1, 2].map((i) => { const mm = ((cm - 1 + i) % 12) + 1, yy = cy + Math.floor((cm - 1 + i) / 12); return `${yy}-${String(mm).padStart(2, '0')}`; });
   return (
     <div className="narrow">
-      <div className="row" style={{ marginBottom: 12 }}>
+      <div className="chips" style={{ marginBottom: 12 }}>
         {months.map((x) => <Link key={x} className={`btn${x === ym ? ' primary' : ''}`} href={`/me/hopes?ym=${x}`}>{Number(x.slice(5))}月分</Link>)}
       </div>
       <div className={`banner${sub ? '' : ' warn'}`}>

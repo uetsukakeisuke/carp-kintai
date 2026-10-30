@@ -22,7 +22,7 @@ export function CorrectionForm({ date, current, suggested, planStart, planEnd }:
   const [pending, start] = useTransition();
   const [toast, node] = useToast();
   const router = useRouter();
-  if (!open) return <div style={{ textAlign: 'right' }}><button className="btn" onClick={() => setOpen(true)}>打刻の修正を申請</button>{node}</div>;
+  if (!open) return <div><button className="btn" style={{ width: '100%' }} onClick={() => setOpen(true)}>打刻の修正を申請</button>{node}</div>;
   return (
     <div className="card" style={{ background: 'var(--surface-2)' }}>
       <div className="formgrid">
@@ -39,8 +39,8 @@ export function CorrectionForm({ date, current, suggested, planStart, planEnd }:
       </div>
       {err && <p className="err">{err}</p>}
       <div className="actions">
-        <button className="btn" onClick={() => setOpen(false)}>やめる</button>
-        <button className="btn primary" disabled={pending} onClick={() => start(async () => {
+        <button className="btn" style={{ flex: 1 }} onClick={() => setOpen(false)}>やめる</button>
+        <button className="btn primary" style={{ flex: 2 }} disabled={pending} onClick={() => start(async () => {
           const r = await requestCorrectionAction(date, kind, minute, reason);
           if (!r.ok) { setErr(r.error); return; }
           setOpen(false); setReason(''); toast(r.message ?? '申請しました'); router.refresh();

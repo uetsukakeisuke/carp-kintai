@@ -230,3 +230,199 @@ tfoot td.f.zero { color: var(--faint) }
 .axis { position: relative; height: 20px }
 .axis span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--faint); font-family: var(--f-num) }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
+
+/* =========================================================
+   操作性の調整（タップしやすさ・読みやすさ・スマホ最適化）
+   ========================================================= */
+html { -webkit-tap-highlight-color: transparent }
+body { font-size: 15px }
+.btn { min-height: 44px; padding: 10px 16px; font-size: 14px; border-radius: 10px; touch-action: manipulation }
+.btn.sm { min-height: 36px; padding: 6px 12px; font-size: 13px }
+.btn:active:not(:disabled) { transform: scale(.98) }
+.sel, input.in, select.in { min-height: 44px; font-size: 16px; padding: 9px 12px; border-radius: 10px; max-width: 100% }
+input[type="date"].in { min-width: 0 }
+.sub { font-size: 13px }
+.k { font-size: 13px }
+.flag { font-size: 12px }
+.stt { font-size: 12.5px }
+.tbl { font-size: 14px }
+.tbl th { font-size: 12.5px }
+.empty { font-size: 14px }
+
+/* ヘッダー：1行にまとめる */
+.top-in { flex-wrap: nowrap; min-height: 56px; padding-block: 6px }
+.brand { font-size: 18px; display: inline-flex; align-items: center; min-height: 44px }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 3px; gap: 2px }
+.seg a { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border-radius: 8px; font-size: 14px; font-weight: 700; color: var(--muted); text-decoration: none; white-space: nowrap }
+.seg a[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12) }
+.who { margin-left: auto }
+.usermenu { position: relative }
+.usermenu summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer; font-weight: 700; color: var(--ink); white-space: nowrap }
+.usermenu summary::-webkit-details-marker { display: none }
+.usermenu summary::after { content: "▾"; font-size: 12px; color: var(--muted) }
+.usermenu[open] summary { background: var(--surface-2) }
+.usermenu .menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); min-width: 220px; padding: 6px; z-index: 40; display: grid }
+.usermenu .menu a, .usermenu .menu button { display: flex; align-items: center; min-height: 46px; padding: 0 14px; border-radius: 8px; border: 0; background: none; text-decoration: none; color: var(--ink); font-size: 15px; text-align: left; width: 100% }
+.usermenu .menu a:hover, .usermenu .menu button:hover { background: var(--surface-2) }
+.usermenu .menu .who-name { padding: 8px 14px 4px; font-size: 12px; color: var(--muted) }
+.tabs a { min-height: 46px; display: inline-flex; align-items: center; padding: 0 14px; font-size: 15px }
+
+/* ボトムナビ（スマホ：スタッフ・店長とも） */
+@media (max-width: 760px) {
+  .tabs.bnav-tabs { display: none }
+  .botnav { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
+  .botnav a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 58px; padding: 6px 2px; font-size: 11.5px; color: var(--muted); text-decoration: none; white-space: nowrap }
+  .botnav a b { font-size: 20px; line-height: 1.1; font-weight: 400 }
+  .botnav a[aria-current="page"] { color: var(--accent); font-weight: 700 }
+  .botnav a[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--accent) }
+  .botnav .dot { position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center }
+  body.has-botnav .wrap { padding-bottom: calc(88px + env(safe-area-inset-bottom)) }
+  .toast { bottom: calc(76px + env(safe-area-inset-bottom)) }
+  .submitbar { bottom: calc(58px + env(safe-area-inset-bottom)) }
+}
+@media (min-width: 761px) { .botnav { display: none !important } }
+
+/* ページ見出し */
+.ph { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 4px 0 14px }
+.ph h1 { font-size: 20px; margin: 0 }
+.ph .grow { flex: 1 }
+.monthnav { display: inline-flex; align-items: center; gap: 4px }
+.monthnav .btn { min-width: 44px; padding: 0 }
+.monthnav b { font-size: 17px; min-width: 7.5em; text-align: center }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px }
+.chips::-webkit-scrollbar { display: none }
+.chips .btn { flex: 0 0 auto }
+
+/* カード系 */
+.summary.three { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+.summary.three > :first-child { grid-column: auto }
+.list { display: grid; gap: 10px }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0 }
+.item-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.item-h b { font-size: 16px }
+.item-h .end { margin-left: auto }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px 12px }
+.kv > div { display: grid; gap: 1px }
+.kv span { font-size: 12px; color: var(--muted) }
+.kv b { font-size: 15px; font-family: var(--f-num); font-weight: 600 }
+.item-a { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }
+.item-a .btn { flex: 1 1 auto }
+
+/* 表 → スマホではカード */
+@media (max-width: 760px) {
+  .tbl.stack, .tbl.stack tbody, .tbl.stack tr, .tbl.stack td { display: block; width: 100% }
+  .tbl.stack { min-width: 0 !important }
+  .tbl.stack thead { display: none }
+  .grid-wrap:has(> .tbl.stack) { border: 0; background: transparent; overflow: visible }
+  .tbl.stack tr { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; margin-bottom: 10px }
+  .tbl.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right }
+  .tbl.stack td::before { content: attr(data-label); color: var(--muted); font-size: 12.5px; text-align: left; flex: 0 0 auto }
+  .tbl.stack td[data-label=""]::before, .tbl.stack td:not([data-label])::before { content: none }
+  .tbl.stack td.head { font-size: 16px; padding-bottom: 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; justify-content: flex-start; text-align: left }
+  .tbl.stack td.acts { justify-content: flex-end; padding-top: 8px }
+  .tbl.stack td.acts .btn { flex: 1 1 0 }
+  .tbl.stack td.wrap { flex-wrap: wrap; justify-content: flex-start; text-align: left }
+}
+
+/* ダイアログ → スマホでは下から出るシート */
+.modal { padding: 20px 20px 16px }
+.modal .actions { position: sticky; bottom: -16px; background: var(--surface); padding: 12px 0 2px; margin-top: 14px }
+@media (max-width: 760px) {
+  .scrim { align-items: flex-end; padding: 0 }
+  .modal { width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)) }
+  .modal::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 12px }
+  .modal .actions { bottom: calc(-12px - env(safe-area-inset-bottom)); padding-bottom: calc(10px + env(safe-area-inset-bottom)) }
+  .modal .actions .btn { flex: 1 1 0 }
+  .modal .actions .left { margin-right: 0; flex-basis: 100% }
+}
+
+/* フォーム */
+@media (max-width: 760px) {
+  .formgrid { grid-template-columns: 1fr; gap: 4px }
+  .formgrid label { margin-top: 8px }
+  .formgrid .sel, .formgrid .in { width: 100% }
+}
+
+/* カレンダー・シフト表の小さな文字を読みやすく */
+.csh { font-size: 11px } .cs { font-size: 11px }
+.hl { font-size: 11px } .chip { font-size: 12px }
+.axis span { font-size: 11px }
+.dh small { font-size: 11.5px }
+tfoot td.f { font-size: 12px }
+@media (max-width: 420px) {
+  .calgrid { gap: 3px }
+  .cc { min-height: 64px; padding: 4px 1px }
+  .csh { font-size: 10.5px; letter-spacing: -.04em }
+  .cc .cn { font-size: 14px }
+}
+.tl-row { grid-template-columns: 96px 1fr; min-height: 36px }
+.tl-row .nm { font-size: 13px }
+.track { height: 36px }
+.seg-bar { top: 7px; height: 22px; line-height: 22px; font-size: 12px }
+
+/* ログイン */
+.namegrid button { min-height: 52px; font-size: 16px }
+.keypad button { min-height: 60px; font-size: 24px }
+.auth-card .chips { margin-top: 10px }
+
+/* 打刻 */
+@media (max-width: 420px) {
+  .clockbig .ct { font-size: 52px }
+  .pbtn { padding: 22px 8px; font-size: 19px }
+}
+.daystrip a { min-height: 60px; justify-content: center; width: 54px }
+
+/* シフト作成：日ごと表示 */
+.dayview { display: grid; gap: 10px }
+.dstrip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 6px; scroll-snap-type: x proximity }
+.dstrip::-webkit-scrollbar { display: none }
+.dstrip button { flex: 0 0 auto; width: 58px; min-height: 72px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; scroll-snap-align: center; padding: 4px 0 }
+.dstrip button b { font-family: var(--f-num); font-size: 17px }
+.dstrip button small { font-size: 11.5px; color: var(--muted) }
+.dstrip button i { font-style: normal; font-family: var(--f-num); font-size: 11px; color: var(--muted) }
+.dstrip button i.over { color: var(--bad); font-weight: 700 }
+.dstrip button.sat b { color: var(--sat) } .dstrip button.sun b { color: var(--sun) }
+.dstrip button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset }
+.daycard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 6px }
+.daycard .row b { font-size: 17px }
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; text-align: left; width: 100%; min-height: 64px }
+.prow.hope { background: var(--hope) }
+.prow.mis { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset }
+.prow.off { opacity: .6 }
+.prow .nm { font-weight: 700; font-size: 16px }
+.prow .meta2 { font-size: 13px; color: var(--muted) }
+.prow .meta2.ok { color: var(--ok) }
+.prow .shiftv { font-family: var(--f-num); font-weight: 600; font-size: 15px; background: var(--bar); color: var(--accent-ink); border-radius: 8px; padding: 6px 10px; white-space: nowrap }
+.prow .addv { color: var(--accent); font-weight: 700; font-size: 14px; border: 1px dashed var(--accent); border-radius: 8px; padding: 6px 10px; white-space: nowrap }
+.viewtoggle { margin-left: auto }
+
+/* シフト作成のサマリー（スマホ） */
+@media (max-width: 760px) {
+  .ssum { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important }
+  .ssum .mid { font-size: 18px }
+  .ssum .k { font-size: 12px }
+  .ssum > :first-child, .ssum > :last-child { grid-column: 1 / -1 }
+  .ssum .card { padding: 10px 12px }
+  .ssum .big { font-size: 24px }
+}
+
+@media (max-width: 760px) { .tbl.stack tr { display: flex !important; flex-direction: column } .tbl.stack td.head { order: -1 } }
+
+.htimes .sel { min-width: 92px }
+.hrow { grid-template-columns: 56px minmax(0, 1fr); padding: 10px 12px; min-height: 64px }
+.addbtn { min-height: 46px; font-size: 15px }
+.card .row .btn, .card > .btn { min-height: 44px }
+.caldet .btn { min-height: 46px }
+
+.field .in, .field .sel { width: 100%; min-width: 0 }
+.seg a { min-height: 40px }
+@media (max-width: 760px) {
+  .tbl.stack td.hide-sp { display: none }
+  .summary.s4 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .summary.s4 > :first-child { grid-column: 1 / -1 }
+  .summary.s4 .mid { font-size: 18px }
+  .summary.s4 .k { font-size: 12px }
+}
+
+.sp-only { display: none }
+@media (max-width: 760px) { .sp-only { display: inline } }

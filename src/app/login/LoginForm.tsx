@@ -44,7 +44,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
   return (
     <div>
       {stores.length > 1 && (
-        <div className="row" style={{ marginTop: 8 }}>
+        <div className="chips">
           <button type="button" className={`btn${store === 'all' ? ' primary' : ''}`} onClick={() => setStore('all')}>すべて</button>
           {stores.map((s) => <button key={s.id} type="button" className={`btn${store === s.id ? ' primary' : ''}`} onClick={() => setStore(s.id)}>{s.name}</button>)}
         </div>

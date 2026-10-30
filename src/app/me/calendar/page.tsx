@@ -48,15 +48,15 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="narrow">
-      <div className="summary" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
+      <div className="summary three">
         <div className="card"><div className="k">シフト</div><div className="mid num">{planDays}日</div><div className="sub num">{(planMin / 60).toFixed(1)}h</div></div>
         <div className="card"><div className="k">出勤した日</div><div className="mid num">{workDays}日</div><div className="sub num">{(workMin / 60).toFixed(1)}h</div></div>
         <div className="card"><div className="k">要確認</div><div className={`mid num${issues ? ' bad-t' : ''}`}>{issues}件</div><div className="sub">打刻漏れなど</div></div>
       </div>
       <div className="calnav">
-        <Link className="btn ghost" href={`/me/calendar?ym=${prev}`}>‹ 前の月</Link>
+        <Link className="btn" href={`/me/calendar?ym=${prev}`} aria-label="前の月">‹ 前月</Link>
         <h2>{y}年{m}月</h2>
-        <Link className="btn ghost" href={`/me/calendar?ym=${next}`}>次の月 ›</Link>
+        <Link className="btn" href={`/me/calendar?ym=${next}`} aria-label="次の月">翌月 ›</Link>
       </div>
       <div className="calgrid">
         {WD.map((x, i) => <div key={x} className={`cw${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{x}</div>)}

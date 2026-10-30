@@ -7,7 +7,7 @@ export default async function SettingsPage() {
   return (
     <div className="narrow" style={{ display: 'grid', gap: 12 }}>
       <div className="card"><b>{u.name} さん</b></div>
-      <div className="card row" style={{ justifyContent: 'space-between' }}>
+      <div className="card row" style={{ justifyContent: 'space-between', minHeight: 64 }}>
         <span>パスワード（4桁）を変える</span><Link className="btn" href="/pin">変更する</Link>
       </div>
       <div className="card">
@@ -17,7 +17,7 @@ export default async function SettingsPage() {
           <li>Android：Chromeで開き、右上の︙ → 「ホーム画面に追加」または「アプリをインストール」</li>
         </ul>
       </div>
-      <form action={logoutAction}><button className="btn" type="submit">ログアウト</button></form>
+      <form action={logoutAction}><button className="btn" type="submit" style={{ width: '100%' }}>ログアウト</button></form>
     </div>
   );
 }

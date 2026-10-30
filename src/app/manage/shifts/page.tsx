@@ -18,14 +18,15 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
   return (
     <>
-      <div className="row" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
-        <div className="row">
+      <div className="ph">
+        <div className="chips">
           {stores.map((s) => <Link key={s.id} className={`btn${s.id === store.id ? ' primary' : ''}`} href={`/manage/shifts?store=${s.id}&ym=${ym}`}>{s.name}</Link>)}
         </div>
-        <div className="row">
-          <Link className="btn ghost" href={`/manage/shifts?store=${store.id}&ym=${prev}`}>‹</Link>
-          <b className="num" style={{ fontSize: 16 }}>{y}年{m}月</b>
-          <Link className="btn ghost" href={`/manage/shifts?store=${store.id}&ym=${next}`}>›</Link>
+        <span className="grow" />
+        <div className="monthnav">
+          <Link className="btn" href={`/manage/shifts?store=${store.id}&ym=${prev}`} aria-label="前の月">‹</Link>
+          <b className="num">{y}年{m}月</b>
+          <Link className="btn" href={`/manage/shifts?store=${store.id}&ym=${next}`} aria-label="次の月">›</Link>
         </div>
       </div>
       <ShiftBoard
