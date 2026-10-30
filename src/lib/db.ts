@@ -14,6 +14,8 @@ function create() {
   return postgres(url, {
     max: local ? 1 : 5,
     idle_timeout: 20,
+    connect_timeout: 10, // つながらないときは待ち続けずにエラーにする
+    max_lifetime: 60 * 5, // 切れた接続を使い続けないよう、5分ごとにつなぎ直す
     prepare: false, // Supabase の接続プーラー（Transaction mode）対応
     ssl: local ? false : 'require',
     types: { date: { to: 1082, from: [1082], serialize: (x: string) => x, parse: (x: string) => x } },
