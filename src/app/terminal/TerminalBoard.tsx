@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { terminalStateAction, terminalPunchAction, disableTerminalAction } from '@/app/actions';
+import { terminalStateAction, terminalPunchAction, disableTerminalAction, checkPunchCodeAction } from '@/app/actions';
 import { NEXT, lastKind, type PunchKind } from '@/lib/calc';
 import { Keypad } from '@/components/Keypad';
 import { Clock } from '@/components/Clock';
 import { PunchButtons } from '@/components/PunchButtons';
-import { PunchLog, STATE_LABEL } from '@/components/PunchLog';
+import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
 import { FaceStep } from '@/components/FaceStep';
@@ -21,6 +21,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   const [pin, setPin] = useState('');
   const [punches, setPunches] = useState<{ kind: PunchKind; minute: number }[] | null>(null);
   const [faceKind, setFaceKind] = useState<PunchKind | null>(null);
+  const [codeKind, setCodeKind] = useState<PunchKind | null>(null); // 打刻コードを入れている打刻
   // 店舗端末では顔認証の準備を最初にしておく
   useEffect(() => { const t = setTimeout(() => loadFace().catch(() => {}), 2000); return () => clearTimeout(t); }, []);
   const [err, setErr] = useState('');
@@ -34,14 +35,24 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   // 放置されたら閉じる（他の人が続けて押さないように）
   useEffect(() => { if (!sel) return; const t = setTimeout(() => close(), 45000); return () => clearTimeout(t); }, [sel, punches]); // eslint-disable-line
 
-  const close = () => { setSel(null); setPin(''); setPunches(null); setErr(''); setFaceKind(null); };
+  const close = () => { setSel(null); setPin(''); setPunches(null); setErr(''); setFaceKind(null); setCodeKind(null); };
+  // 名前を押したら、その人の今日の状態を読み込む
+  const open = (r: Row) => {
+    setSel(r); setErr('');
+    start(async () => {
+      const x = await call(() => terminalStateAction(r.id));
+      if (!x.ok) { setErr(x.error); return; }
+      setPunches(x.punches);
+    });
+  };
+  // 退勤はそのまま顔の確認へ。それ以外は打刻コードを入れてから
+  const punch = (k: PunchKind) => { setErr(''); setPin(''); if (k === 'out') setFaceKind(k); else setCodeKind(k); };
   const check = (v: string) => start(async () => {
     setErr('');
-    const r = await call(() => terminalStateAction(sel!.id, v));
+    const r = await call(() => checkPunchCodeAction(v));
     if (!r.ok) { setErr(r.error); setPin(''); return; }
-    setPunches(r.punches);
+    setFaceKind(codeKind); setCodeKind(null);
   });
-  const punch = (k: PunchKind) => setFaceKind(k); // 押したら顔の確認へ
   const doPunch = (k: PunchKind, f: { r: string; dist?: number }) => start(async () => {
     const r = await call(() => terminalPunchAction(sel!.id, pin, k, f));
     const name = sel!.name;
@@ -57,10 +68,10 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
         <button className="btn ghost" onClick={() => setAdmin(true)}>端末の設定</button>
       </div>
       <Clock />
-      <p className="sub" style={{ textAlign: 'center', marginTop: 0 }}>自分の名前を押して、打刻コード（4桁）を入れてください。</p>
+      <p className="sub" style={{ textAlign: 'center', marginTop: 0 }}>自分の名前を押して打刻してください（退勤以外は打刻コード4桁が必要です）。</p>
       <div className="termgrid">
         {rows.map((r) => (
-          <button key={r.id} className="tcard" onClick={() => setSel(r)}>
+          <button key={r.id} className="tcard" onClick={() => open(r)}>
             <b>{r.name}</b>
             <span className={`stt s-${r.state}`}>{STATE_LABEL[r.state]}</span>
             <small className="sub num">{r.plan ? `${hm(r.plan.start)}〜${hm(r.plan.end)}` : 'シフトなし'}</small>
@@ -72,8 +83,10 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="tm">
             <h3 id="tm">{sel.name}さん</h3>
             {punches === null ? (
+              <p className="sub" style={{ textAlign: 'center' }}>読み込んでいます…</p>
+            ) : codeKind ? (
               <>
-                <p className="meta">打刻コード（4桁）を入れてください</p>
+                <p className="meta">{PUNCH_LABEL[codeKind]}：打刻コード（4桁）を入れてください</p>
                 <Keypad value={pin} onChange={setPin} onDone={check} disabled={pending} />
               </>
             ) : faceKind ? (

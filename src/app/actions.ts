@@ -62,18 +62,17 @@ export async function checkPunchCodeAction(code: string): Promise<Result> {
 export async function punchAction(kind: PunchKind, code: string, face?: FaceIn): Promise<Result> {
   const u = await requireUser();
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
-  if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
+  if (kind !== 'out' && !punchCodeOk(code)) return { ok: false, error: CODE_ERR }; // 退勤は打刻コード不要
   const f = faceOf(face);
   const r = await recordPunch(u.id, kind, 'mobile', f);
   revalidatePath('/me');
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }
 
-/** 店舗端末：打刻コードを確かめてから、その人の今日の状態を返す */
-export async function terminalStateAction(staffId: number, code: string) {
+/** 店舗端末：その人の今日の状態を返す（打刻コードは、退勤以外を押したときに確かめる） */
+export async function terminalStateAction(staffId: number) {
   const t = await currentTerminal();
   if (!t) return { ok: false as const, error: 'この端末は店舗端末として設定されていません' };
-  if (!punchCodeOk(code)) return { ok: false as const, error: CODE_ERR };
   const day = await resolveWorkDay(Number(staffId));
   return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })) };
 }
@@ -81,7 +80,7 @@ export async function terminalPunchAction(staffId: number, code: string, kind: P
   const t = await currentTerminal();
   if (!t) return { ok: false, error: 'この端末は店舗端末として設定されていません' };
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
-  if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
+  if (kind !== 'out' && !punchCodeOk(code)) return { ok: false, error: CODE_ERR }; // 退勤は打刻コード不要
   const [s] = await sql<{ id: number }[]>`select id from staff where id = ${Number(staffId)} and active`;
   if (!s) return { ok: false, error: 'このスタッフは利用できません' };
   const f = faceOf(face);

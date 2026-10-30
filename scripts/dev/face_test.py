@@ -26,7 +26,7 @@ with sync_playwright() as p:
     ok('次からはこの端末の顔と照合（本人→OK）', '本人確認OK' in toast(s,'本人確認OK'))
     s.click('.pbtn.p-break_end'); keypad(s,'1111'); face_file(s,'face2.jpg')
     ok('別人なら記録して要確認', '一致しなかった' in toast(s,'一致しなかった'))
-    s.click('.pbtn.p-out'); keypad(s,'1111'); s.wait_for_selector('text=顔なしで打刻'); s.click('text=顔なしで打刻')
+    s.click('.pbtn.p-out'); s.wait_for_selector('text=顔なしで打刻'); s.click('text=顔なしで打刻')
     ok('顔なしでも打刻でき要確認', '顔なし' in toast(s,'顔なしのため'))
     s.click('.pbtn.p-in'); keypad(s,'1111'); s.click('text=この端末の顔を登録し直す'); s.check('.consent input'); s.click('button:has-text("顔を登録して打刻")'); face_file(s,'face2.jpg')
     ok('登録し直せる（店長に伝わる）', '登録し直しました' in toast(s,'登録し直しました'))
@@ -34,7 +34,7 @@ with sync_playwright() as p:
     ok('設定にこの端末の顔の登録が出て、消せる', 'に登録' in s.inner_text('body') and s.locator('button', has_text='消す').count()==1)
     # 別の端末は独立
     s2=ctx(b).new_page(); s2.goto(BASE+'/login'); s2.locator('.namegrid button',has_text='井上 朝日').click(); s2.wait_for_url('**/me/punch')
-    s2.click('.pbtn.p-out'); keypad(s2,'1111'); s2.wait_for_selector('.consent')
+    s2.click('.pbtn.p-out'); s2.wait_for_selector('.consent')
     ok('別の端末ではその端末で改めて登録（端末ごとに独立）', 'はじめに自分の顔を登録' in s2.inner_text('.modal'))
     # 管理者
     a=ctx(b,1300,900).new_page(); a.on('pageerror',lambda e: errs.append(str(e)))
@@ -47,11 +47,11 @@ with sync_playwright() as p:
     ok('顔の確認が必要な打刻の案内', a.locator('.banner', has_text='顔の確認が必要な打刻').count()==1)
     # 店舗端末（端末ごとに独立して登録）
     a.goto(BASE+'/manage/settings'); a.click('button:has-text("この端末を店舗端末にする")'); a.wait_for_url('**/terminal')
-    a.locator('.tcard', has_text='大西 希望').click(); keypad(a,'1111'); a.wait_for_selector('.modal .pbtns')
-    a.click('.modal .pbtn.p-in'); a.wait_for_selector('.consent'); a.check('.consent input'); a.click('button:has-text("顔を登録して打刻")'); face_file(a,'face1.jpg')
+    a.locator('.tcard', has_text='大西 希望').click(); a.wait_for_selector('.modal .pbtns')
+    a.click('.modal .pbtn.p-in'); keypad(a,'1111'); a.wait_for_selector('.consent'); a.check('.consent input'); a.click('button:has-text("顔を登録して打刻")'); face_file(a,'face1.jpg')
     ok('店舗端末でも本人がその場で登録', 'この端末に顔を登録しました' in toast(a,'記録しました'))
-    a.locator('.tcard', has_text='大西 希望').click(); keypad(a,'1111'); a.wait_for_selector('.modal .pbtns')
-    a.click('.modal .pbtn.p-break_start'); face_file(a,'face0.jpg')
+    a.locator('.tcard', has_text='大西 希望').click(); a.wait_for_selector('.modal .pbtns')
+    a.click('.modal .pbtn.p-break_start'); keypad(a,'1111'); face_file(a,'face0.jpg')
     ok('店舗端末で次からは照合（同じ人の別写真→OK）', '本人確認OK' in toast(a,'本人確認OK'))
     ok('JSエラーなし', not errs, ';'.join(errs)[:300])
     b.close()

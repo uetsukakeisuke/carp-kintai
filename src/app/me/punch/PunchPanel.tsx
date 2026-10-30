@@ -51,12 +51,15 @@ export function PunchPanel({ allowed, reClockIn, staffId, face = true }: { allow
   return (
     <>
       <Clock />
-      <PunchButtons allowed={allowed} reClockIn={reClockIn} disabled={pending} onPunch={(k) => { setErr(''); setCode(''); setKind(k); }} />
+      <PunchButtons allowed={allowed} reClockIn={reClockIn} disabled={pending} onPunch={(k) => {
+        setErr(''); setCode(''); setKind(k);
+        if (k === 'out') { if (face) setFaceStep(''); else record(''); } // 退勤は打刻コード不要
+      }} />
       {kind && (
         <div className="scrim" onClick={(e) => e.target === e.currentTarget && close()}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pc">
             <h3 id="pc">{kind === 'in' && reClockIn ? 'もう一度出勤' : PUNCH_LABEL[kind]}</h3>
-            {faceStep ? (
+            {faceStep !== null ? (
               <>
                 {pending ? <p className="sub" style={{ textAlign: 'center' }}>記録しています…</p>
                   : <FaceStep staffId={staffId} onResult={(f) => record(faceStep, f)} />}
@@ -67,7 +70,7 @@ export function PunchPanel({ allowed, reClockIn, staffId, face = true }: { allow
                 <Keypad value={code} onChange={setCode} onDone={submit} disabled={pending} />
               </>
             )}
-            {pending && !faceStep && <p className="sub" style={{ textAlign: 'center' }}>確認しています…</p>}
+            {pending && faceStep === null && <p className="sub" style={{ textAlign: 'center' }}>確認しています…</p>}
             {err && <p className="err" role="alert" style={{ textAlign: 'center' }}>{err}</p>}
             <div className="actions"><button className="btn" onClick={close}>やめる</button></div>
           </div>
