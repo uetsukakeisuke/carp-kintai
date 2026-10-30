@@ -3,12 +3,11 @@ import { listStaff, listStores, ratesFor, minWages } from '@/lib/data';
 import { wageAt, minWageAt } from '@/lib/calc';
 import { jstParts } from '@/lib/time';
 import { StaffManager } from './StaffManager';
-import { faceRegistrations } from '@/lib/face';
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ all?: string }> }) {
   const u = await requireManager();
   const sp = await searchParams;
-  const [staff, stores, mw, faces] = await Promise.all([listStaff({ includeInactive: sp.all === '1' }), listStores(true), minWages(), faceRegistrations()]);
+  const [staff, stores, mw] = await Promise.all([listStaff({ includeInactive: sp.all === '1' }), listStores(true), minWages()]);
   const rates = await ratesFor(staff.map((s) => s.id));
   const today = jstParts().date;
   const next = mw.find((m) => m.effective_from > today) ?? null;
@@ -30,7 +29,6 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
           locked: !!s.locked_until && s.locked_until > new Date(), wage: cur, future: fut, history: r,
           belowNow: s.pay_type === 'hourly' && cur !== null && cur < minWageAt(mw, today),
           belowNext: s.pay_type === 'hourly' && !!next && atNext !== null && atNext < next.hourly,
-          faceAt: (() => { const f = faces.find((x) => x.staff_id === s.id); return f ? jstParts(f.created_at).date.replace(/-/g, '/') : null; })(),
         };
       })}
     />

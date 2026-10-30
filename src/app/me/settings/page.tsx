@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireUser, isManager } from '@/lib/auth';
 import { logoutAction } from '@/app/actions';
+import { FaceReset } from './FaceReset';
 
 export default async function SettingsPage() {
   const u = await requireUser();
@@ -12,6 +13,7 @@ export default async function SettingsPage() {
         <span>パスワード（4桁）を変える</span><Link className="btn" href="/pin">変更する</Link>
       </div>
       )}
+      <FaceReset staffId={u.id} />
       <div className="card">
         <b>スマホのホーム画面に追加する</b>
         <ul className="sub" style={{ margin: '6px 0 0', paddingLeft: 18 }}>

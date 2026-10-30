@@ -11,7 +11,10 @@ export function PunchLog({ punches }: { punches: { kind: PunchKind; minute: numb
       {punches.map((p, i) => (
         <span className="lg" key={i}>
           <span className="lk">{PUNCH_LABEL[p.kind]}</span><span className="num">{hm(p.minute)}</span>
-          {p.face === 'mismatch' ? <span className="flag f-late" title="顔が登録と一致しませんでした">顔 要確認</span> : p.face === 'skipped' ? <span className="flag f-ot" title="写真なしで打刻されました">顔なし</span> : null}
+          {p.face === 'mismatch' ? <span className="flag f-late" title="顔が登録と一致しませんでした">顔 要確認</span>
+            : p.face === 'skipped' ? <span className="flag f-ot" title="顔の確認なしで打刻されました">顔なし</span>
+            : p.face === 'reregistered' ? <span className="flag f-ot" title="打刻した端末で顔を登録し直しました">顔を再登録</span>
+            : p.face === 'registered' ? <span className="flag" title="打刻した端末ではじめて顔を登録しました">顔を登録</span> : null}
           {p.correction_reason ? <span className="ed" title={`修正前：${p.original_minute != null ? hm(p.original_minute) : '記録なし'}／理由：${p.correction_reason}`}>修正済み</span> : null}
         </span>
       ))}

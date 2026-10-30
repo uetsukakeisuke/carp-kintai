@@ -1,7 +1,6 @@
 import { requireUser } from '@/lib/auth';
 import { resolveWorkDay, publishedShifts, whoIsWorking } from '@/lib/data';
 import { NowWorking } from '@/components/NowWorking';
-import { hasFace } from '@/lib/face';
 import { summarizeDay, NEXT, lastKind } from '@/lib/calc';
 import { jstParts, hm } from '@/lib/time';
 import { PunchPanel } from './PunchPanel';
@@ -9,14 +8,14 @@ import { PunchLog, STATE_LABEL } from '@/components/PunchLog';
 
 export default async function PunchPage() {
   const u = await requireUser();
-  const [day, now, face] = await Promise.all([resolveWorkDay(u.id), whoIsWorking(), hasFace(u.id)]);
+  const [day, now] = await Promise.all([resolveWorkDay(u.id), whoIsWorking()]);
   const [plan] = await publishedShifts(day.date, day.date, { staffId: u.id });
   const s = summarizeDay(day.punches, { now: day.minute, plan: plan ? { start: plan.start_min, end: plan.end_min } : null });
   const lk = lastKind(day.punches);
   return (
     <div className="narrow">
       <div className="punchcard">
-        <PunchPanel allowed={NEXT[lk]} reClockIn={lk === 'out'} serverNow={Date.now()} face={face} />
+        <PunchPanel allowed={NEXT[lk]} reClockIn={lk === 'out'} serverNow={Date.now()} staffId={u.id} />
         <div className="pstate">
           <span className={`stt s-${s.state}`}>{STATE_LABEL[s.state]}</span>
           <span className="sub">{plan ? `${day.date === jstParts().date ? '今日' : '前日'}のシフト ${hm(plan.start_min)}〜${hm(plan.end_min)}` : '今日のシフトはありません'}</span>

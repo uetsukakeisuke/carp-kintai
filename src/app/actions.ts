@@ -9,7 +9,6 @@ import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
 import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
-import { hasFace, matchFace, registerFace, deleteFace, validDescriptor, type FaceInput, type FaceResult } from '@/lib/face';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -41,9 +40,18 @@ function punchMessage(kind: PunchKind, minute: number) {
   return `${PUNCH_LABEL[kind]} ${h}:${m} を記録しました`;
 }
 const CODE_ERR = '打刻コードが違います。もう一度入力してください。';
-const FACE_REQUIRED = '顔の確認が必要です。画面を更新してもう一度打刻してください。';
-function faceNote(f: FaceResult | null) {
-  return !f ? '' : f.face === 'ok' ? '（本人確認OK）' : f.face === 'mismatch' ? '（顔が一致しなかったため、店長の確認待ちになります）' : '（写真なしのため、店長の確認待ちになります）';
+// 顔の確認は端末の中で行い、結果だけを受け取る
+type FaceIn = { r?: string; dist?: number } | undefined;
+const FACE_VALUES = ['ok', 'mismatch', 'skipped', 'registered', 'reregistered'];
+function faceOf(f: FaceIn): { face: string; distance: number | null } | null {
+  if (!f || !FACE_VALUES.includes(String(f.r))) return null;
+  const d = Number(f.dist);
+  return { face: String(f.r), distance: Number.isFinite(d) && d >= 0 && d < 10 ? Math.round(d * 1000) / 1000 : null };
+}
+function faceNote(f: { face: string } | null) {
+  if (!f) return '';
+  return ({ ok: '（本人確認OK）', registered: '（この端末に顔を登録しました）', mismatch: '（顔が一致しなかったため、店長の確認待ちになります）',
+    skipped: '（顔なしのため、店長の確認待ちになります）', reregistered: '（顔を登録し直しました。店長の確認待ちになります）' } as Record<string, string>)[f.face] ?? '';
 }
 /** 打刻コードだけ先に確かめる（顔の撮影の前に） */
 export async function checkPunchCodeAction(code: string): Promise<Result> {
@@ -51,12 +59,11 @@ export async function checkPunchCodeAction(code: string): Promise<Result> {
   if (!u && !t) return { ok: false, error: 'ログインしてください' };
   return punchCodeOk(code) ? { ok: true } : { ok: false, error: CODE_ERR };
 }
-export async function punchAction(kind: PunchKind, code: string, face?: FaceInput): Promise<Result> {
+export async function punchAction(kind: PunchKind, code: string, face?: FaceIn): Promise<Result> {
   const u = await requireUser();
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
   if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
-  const f = await matchFace(u.id, face);
-  if (f === 'required') return { ok: false, error: FACE_REQUIRED };
+  const f = faceOf(face);
   const r = await recordPunch(u.id, kind, 'mobile', f);
   revalidatePath('/me');
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
@@ -67,18 +74,17 @@ export async function terminalStateAction(staffId: number, code: string) {
   const t = await currentTerminal();
   if (!t) return { ok: false as const, error: 'この端末は店舗端末として設定されていません' };
   if (!punchCodeOk(code)) return { ok: false as const, error: CODE_ERR };
-  const [day, face] = await Promise.all([resolveWorkDay(Number(staffId)), hasFace(Number(staffId))]);
-  return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })), face };
+  const day = await resolveWorkDay(Number(staffId));
+  return { ok: true as const, punches: day.punches.map((p) => ({ kind: p.kind, minute: p.minute })) };
 }
-export async function terminalPunchAction(staffId: number, code: string, kind: PunchKind, face?: FaceInput): Promise<Result> {
+export async function terminalPunchAction(staffId: number, code: string, kind: PunchKind, face?: FaceIn): Promise<Result> {
   const t = await currentTerminal();
   if (!t) return { ok: false, error: 'この端末は店舗端末として設定されていません' };
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
   if (!punchCodeOk(code)) return { ok: false, error: CODE_ERR };
   const [s] = await sql<{ id: number }[]>`select id from staff where id = ${Number(staffId)} and active`;
   if (!s) return { ok: false, error: 'このスタッフは利用できません' };
-  const f = await matchFace(Number(staffId), face);
-  if (f === 'required') return { ok: false, error: FACE_REQUIRED };
+  const f = faceOf(face);
   const r = await recordPunch(Number(staffId), kind, 'terminal', f);
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }
@@ -185,7 +191,6 @@ export async function saveStaffAction(id: number | null, input: StaffInput): Pro
     where id = ${id}`;
   if (input.active === false) {
     await sql`delete from sessions where staff_id = ${id}`;
-    await sql`delete from staff_faces where staff_id = ${id}`; // 退職したら顔の登録も消す
   }
   await audit(u.id, 'staff_update', { id, input });
   revalidatePath('/manage/staff');
@@ -341,20 +346,4 @@ export async function editPunchesAction(staffId: number, date: string, items: { 
   await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
   revalidatePath('/manage/attendance');
   return { ok: true, message: '勤怠を直しました' };
-}
-
-// ---------- 顔の登録（管理者が本人の同意を得て行う） ----------
-export async function registerFaceAction(staffId: number, descriptor: number[], consent: boolean): Promise<Result> {
-  const u = await requireManager();
-  if (!consent) return { ok: false, error: '本人への説明と同意の確認にチェックしてください' };
-  if (!validDescriptor(descriptor)) return { ok: false, error: '顔を読み取れませんでした。撮り直してください' };
-  await registerFace(u.id, Number(staffId), descriptor);
-  revalidatePath('/manage/staff');
-  return { ok: true, message: '顔を登録しました。次の打刻から本人確認をします' };
-}
-export async function deleteFaceAction(staffId: number): Promise<Result> {
-  const u = await requireManager();
-  await deleteFace(u.id, Number(staffId));
-  revalidatePath('/manage/staff');
-  return { ok: true, message: '顔の登録を消しました' };
 }

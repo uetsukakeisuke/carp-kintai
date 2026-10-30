@@ -16,11 +16,11 @@ with sync_playwright() as p:
     ok('打刻画面に「いま出勤中」が出る', v.locator('.nowcard').count()==1, f'{n0}人')
     # Bさんが出勤
     w=ctx(b).new_page(); w.goto(BASE+'/login'); w.locator('.namegrid button',has_text='吉村 優太').click(); w.wait_for_url('**/me/punch')
-    w.click('.pbtn.p-in'); keypad(w,'1111'); w.wait_for_selector('.toast')
+    w.click('.pbtn.p-in'); keypad(w,'1111'); w.locator('button', has_text='顔なしで打刻').first.click(); w.wait_for_selector('.toast')
     # Aさんの画面：再読み込みせずに更新される（30秒以内）
     v.wait_for_function("() => [...document.querySelectorAll('.now-list li')].some(li => li.innerText.includes('吉村 優太'))", timeout=40000)
     ok('他の人が出勤すると、再読み込みなしで一覧に出る', True, v.locator('.now-n').inner_text()+'人')
-    w.click('.pbtn.p-break_start'); keypad(w,'1111'); w.wait_for_selector('.toast')
+    w.wait_for_timeout(800); w.click('.pbtn.p-break_start'); keypad(w,'1111'); w.locator('button', has_text='顔なしで打刻').first.click(); w.wait_for_selector('.toast >> text=休憩開始')
     v.evaluate("window.dispatchEvent(new Event('focus'))"); v.wait_for_timeout(1500)
     ok('休憩中と表示される', '休憩中' in v.locator('.now-list li', has_text='吉村 優太').inner_text())
     ok('時給・人件費は出ない', '¥' not in v.inner_text('.nowcard'))

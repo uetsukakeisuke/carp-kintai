@@ -40,7 +40,7 @@ export async function minWages() {
 }
 
 // ---------------- 打刻 ----------------
-export interface PunchRow { id: number; staff_id: number; store_id: number | null; work_date: string; kind: PunchKind; minute: number; via: string; original_minute: number | null; correction_reason: string | null; face: 'ok' | 'mismatch' | 'skipped' | null }
+export interface PunchRow { id: number; staff_id: number; store_id: number | null; work_date: string; kind: PunchKind; minute: number; via: string; original_minute: number | null; correction_reason: string | null; face: 'ok' | 'mismatch' | 'skipped' | 'registered' | 'reregistered' | null }
 
 export async function punchesBetween(from: string, to: string, staffId?: number): Promise<PunchRow[]> {
   return sql<PunchRow[]>`select id, staff_id, store_id, work_date, kind, minute, via, original_minute, correction_reason, face

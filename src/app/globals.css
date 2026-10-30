@@ -654,3 +654,4 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .consent ul { margin: 6px 0; padding-left: 18px; display: grid; gap: 2px }
 .consent label { display: flex; gap: 8px; align-items: center; font-weight: 700; min-height: 44px }
 .consent input { width: 20px; height: 20px }
+.linkbtn { all: unset; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: inherit }

@@ -2,7 +2,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { punchAction, checkPunchCodeAction } from '@/app/actions';
-import { FaceCapture } from '@/components/FaceCapture';
+import { FaceStep } from '@/components/FaceStep';
 import { loadFace } from '@/lib/face-client';
 import type { PunchKind } from '@/lib/calc';
 import { useToast } from '@/components/Toast';
@@ -12,7 +12,7 @@ import { Clock } from '@/components/Clock';
 import { Keypad } from '@/components/Keypad';
 import { call } from '@/lib/call';
 
-export function PunchPanel({ allowed, reClockIn, face = false }: { allowed: PunchKind[]; reClockIn: boolean; serverNow: number; face?: boolean }) {
+export function PunchPanel({ allowed, reClockIn, staffId, face = true }: { allowed: PunchKind[]; reClockIn: boolean; serverNow: number; staffId: number; face?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [toast, toastNode] = useToast();
@@ -32,8 +32,8 @@ export function PunchPanel({ allowed, reClockIn, face = false }: { allowed: Punc
 
   const close = () => { setKind(null); setCode(''); setErr(''); setFaceStep(null); };
   // 打刻コード（全員 1111）を入れると記録する
-  const record = (v: string, d?: number[] | null) => start(async () => {
-    const r = await call(() => punchAction(kind!, v, face ? { d: d ?? null } : undefined));
+  const record = (v: string, f?: { r: string; dist?: number }) => start(async () => {
+    const r = await call(() => punchAction(kind!, v, f));
     if (!r.ok) { setErr(r.error); setCode(''); setFaceStep(null); return; }
     close();
     toast(r.message ?? '記録しました');
@@ -58,9 +58,8 @@ export function PunchPanel({ allowed, reClockIn, face = false }: { allowed: Punc
             <h3 id="pc">{kind === 'in' && reClockIn ? 'もう一度出勤' : PUNCH_LABEL[kind]}</h3>
             {faceStep ? (
               <>
-                <p className="meta">本人確認のため、顔を写してください。写真は保存されません。</p>
                 {pending ? <p className="sub" style={{ textAlign: 'center' }}>記録しています…</p>
-                  : <FaceCapture onDone={(d) => record(faceStep, d)} onSkip={() => record(faceStep, null)} skipLabel="写真なしで打刻（店長確認）" />}
+                  : <FaceStep staffId={staffId} onResult={(f) => record(faceStep, f)} />}
               </>
             ) : (
               <>
