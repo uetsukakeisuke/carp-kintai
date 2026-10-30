@@ -610,3 +610,10 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .codebox pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; max-height: 260px; white-space: pre; margin: 0 }
 .codebox .btn { position: absolute; top: 8px; right: 8px }
 .steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px }
+
+/* 給与報告：月ごとの出力一覧 */
+.mlist { display: grid; gap: 6px }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 12px }
+.mrow.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset }
+.mrow > a:first-child { display: grid; text-decoration: none; color: inherit; flex: 1; min-height: 40px; align-content: center }
+.mrow > a:first-child .sub { font-size: 12.5px }

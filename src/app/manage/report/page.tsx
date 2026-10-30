@@ -7,19 +7,30 @@ import { sql } from '@/lib/db';
 export default async function ReportPage({ searchParams }: { searchParams: Promise<{ ym?: string }> }) {
   const sp = await searchParams;
   const now = jstParts().date;
-  const [cy, cm] = now.split('-').map(Number);
   const ym = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : now.slice(0, 7);
   const [y, m] = ym.split('-').map(Number);
   const { rows, warnings, header } = await reportData(y, m);
   const [{ report_email }] = await sql<{ report_email: string }[]>`select report_email from settings where id = 1`;
-  const months = [-2, -1, 0].map((i) => { const t = cm - 1 + i, yy = cy + Math.floor(t / 12), mm = ((t % 12) + 12) % 12 + 1; return `${yy}-${String(mm).padStart(2, '0')}`; });
+  const shift = (k: string, n: number) => { const [yy, mm] = k.split('-').map(Number); const t = yy * 12 + (mm - 1) + n; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`; };
+  const cur = now.slice(0, 7);
+  // 打刻がある月（＝報告を出せる月）の一覧。新しい順。
+  const hist = await sql<{ ym: string; n: number }[]>`
+    select to_char(work_date, 'YYYY-MM') as ym, count(distinct p.staff_id)::int as n
+    from punches p join staff s on s.id = p.staff_id
+    where not p.voided and s.pay_type = 'hourly' and work_date < ${now}
+    group by 1 order by 1 desc`;
   const total = rows.reduce((a, r) => a + reportGross(r), 0);
   const hm = (x: number) => `${Math.floor(x / 60)}時間${String(x % 60).padStart(2, '0')}分`;
   return (
     <>
       <div className="banner"><span><b>税理士事務所への給与報告</b>　打刻の実績から、いつもの「給与報告フォーム」をそのままの書式で作成します。締日の翌日以降に出力し、{report_email} に送ってください。</span></div>
-      <div className="chips" style={{ marginBottom: 10 }}>
-        {months.map((x) => <Link key={x} className={`btn${x === ym ? ' primary' : ''}`} href={`/manage/report?ym=${x}`}>{Number(x.slice(5))}月分</Link>)}
+      <div className="ph" style={{ marginBottom: 10 }}>
+        <span className="grow" />
+        <div className="monthnav">
+          <Link className="btn" href={`/manage/report?ym=${shift(ym, -1)}`} aria-label="前の月">‹</Link>
+          <b className="num">{y}年{m}月分</b>
+          {ym < cur ? <Link className="btn" href={`/manage/report?ym=${shift(ym, 1)}`} aria-label="次の月">›</Link> : <span className="btn" aria-disabled="true" style={{ opacity: .4 }}>›</span>}
+        </div>
       </div>
       <div className="card" style={{ marginBottom: 14, display: 'grid', gap: 10 }}>
         <div className="kv">
@@ -30,6 +41,23 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         </div>
         {rows.length ? <a className="btn primary" href={`/api/report?ym=${ym}`}>給与報告フォーム（Excel）を出力</a> : <span className="btn" aria-disabled="true">この月の勤務実績はまだありません</span>}
       </div>
+      {hist.length > 0 && (
+        <section className="card" style={{ marginBottom: 14 }}>
+          <b>月ごとの給与報告フォーム</b>
+          <p className="sub" style={{ margin: '4px 0 8px' }}>勤務実績がある月は、いつでもその月の給与報告フォーム（Excel）を出力できます。修正申請を承認した後に出し直すと、修正後の内容になります。</p>
+          <div className="mlist">
+            {hist.map((h) => {
+              const [hy, hmm] = h.ym.split('-').map(Number);
+              return (
+                <div key={h.ym} className={`mrow${h.ym === ym ? ' on' : ''}`}>
+                  <Link href={`/manage/report?ym=${h.ym}`}><b>{hy}年{hmm}月分</b><span className="sub">{hmm === 12 ? 1 : hmm + 1}月{header.payD}日支給 ・ {h.n}人</span></Link>
+                  <a className="btn" href={`/api/report?ym=${h.ym}`} download>Excel</a>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
       {warnings.length > 0 && <div className="banner warn"><span><b>退勤の打刻がない勤務が{warnings.length}件あり、報告から除いています。</b>　「勤怠実績」で修正申請を承認してから出力してください：{warnings.slice(0, 6).map((w) => `${w.name} ${dateLabel(w.date)}`).join('、')}{warnings.length > 6 ? ' ほか' : ''}</span></div>}
       <div className="grid-wrap"><table className="tbl stack dense" style={{ minWidth: 820 }}>
         <thead><tr><th>所属</th><th>氏名</th><th>出勤日数</th><th>勤務時間</th><th>残業時間</th><th>時給</th><th>深夜手当</th><th>通勤手当日額</th><th>総支給額（見込み）</th></tr></thead>
