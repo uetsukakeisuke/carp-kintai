@@ -192,3 +192,49 @@ export async function replaceDayPunches(actorId: number, staffId: number, date: 
   });
   await audit(actorId, 'punches_edited', { staffId, date, reason, before: before.map((p) => [p.kind, p.minute]), after: items.map((i) => [i.kind, i.minute]) });
 }
+
+// ---------------- いま出勤している人（全員が見られる） ----------------
+export interface NowBoard {
+  asOf: string; // HH:MM
+  working: { id: number; name: string; state: 'working' | 'break'; since: number; planEnd: number | null }[];
+  upcoming: { id: number; name: string; start: number; end: number }[];
+  notYet: { id: number; name: string; start: number; end: number }[]; // 予定の時間を過ぎたが打刻がない
+  done: number; // 今日すでに退勤した人数
+}
+export async function whoIsWorking(storeId?: number | null): Promise<NowBoard> {
+  const t = jstParts();
+  const prev = addDays(t.date, -1);
+  const [staff, punches, plans] = await Promise.all([
+    sql<{ id: number; name: string; store_id: number | null; sort: number }[]>`select id, name, store_id, sort from staff where active order by sort, id`,
+    punchesBetween(prev, t.date),
+    publishedShifts(prev, t.date),
+  ]);
+  const working: NowBoard['working'] = [];
+  const upcoming: NowBoard['upcoming'] = [];
+  const notYet: NowBoard['notYet'] = [];
+  let done = 0;
+  for (const s of staff) {
+    if (storeId && s.store_id && s.store_id !== storeId) continue;
+    const mine = punches.filter((p) => p.staff_id === s.id);
+    const pp = mine.filter((p) => p.work_date === prev), tp = mine.filter((p) => p.work_date === t.date);
+    // 5時より前で、前日の勤務が終わっていなければ前日の続き（日付をまたぐ勤務）
+    const d = decideWorkDay(t, prev, pp.length ? pp[pp.length - 1].kind : 'none');
+    const day = d.date === prev ? pp : tp;
+    const plan = plans.find((x) => x.staff_id === s.id && x.work_date === d.date) ?? null;
+    const last = day[day.length - 1];
+    if (last && last.kind !== 'out') {
+      const lastIn = [...day].reverse().find((p) => p.kind === 'in');
+      working.push({ id: s.id, name: s.name, state: last.kind === 'break_start' ? 'break' : 'working', since: lastIn?.minute ?? day[0].minute, planEnd: plan?.end_min ?? null });
+    } else if (last) {
+      if (d.date === t.date) done++;
+    } else {
+      const p = plans.find((x) => x.staff_id === s.id && x.work_date === t.date);
+      if (p && p.start_min > t.minute) upcoming.push({ id: s.id, name: s.name, start: p.start_min, end: p.end_min });
+      else if (p && p.end_min > t.minute) notYet.push({ id: s.id, name: s.name, start: p.start_min, end: p.end_min });
+    }
+  }
+  working.sort((a, b) => a.since - b.since);
+  upcoming.sort((a, b) => a.start - b.start);
+  notYet.sort((a, b) => a.start - b.start);
+  return { asOf: `${Math.floor(t.minute / 60)}:${String(t.minute % 60).padStart(2, '0')}`, working, upcoming, notYet, done };
+}

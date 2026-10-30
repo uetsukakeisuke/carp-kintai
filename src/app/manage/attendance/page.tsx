@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { listStores, listStaff, punchesBetween, publishedShifts, listCorrections, ratesFor } from '@/lib/data';
+import { listStores, listStaff, punchesBetween, publishedShifts, listCorrections, ratesFor, whoIsWorking } from '@/lib/data';
+import { NowWorking } from '@/components/NowWorking';
 import { summarizeDay, laborCost, wageAt, planCost } from '@/lib/calc';
 import { jstParts, addDays, dateLabel, hm, yen, WD, weekday } from '@/lib/time';
 import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
@@ -15,7 +16,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const d = /^\d{4}-\d{2}-\d{2}$/.test(sp.d ?? '') ? sp.d! : now.date;
   const from = addDays(d, -13 + Math.min(0, 0));
   const staff = await listStaff({ storeId: store?.id });
-  const [punches, shifts, pending, rates, weekPunches] = await Promise.all([
+  const [nowBoard, punches, shifts, pending, rates, weekPunches] = await Promise.all([
+    whoIsWorking(),
     punchesBetween(d, d), publishedShifts(d, d, { storeId: store?.id }), listCorrections({ status: 'pending' }), ratesFor(staff.map((s) => s.id)),
     punchesBetween(addDays(now.date, -13), now.date),
   ]);
@@ -77,6 +79,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       <div className="daystrip">
         {strip.map((k) => <Link key={k} href={`/manage/attendance?store=${store?.id}&d=${k}`} aria-current={k === d ? 'true' : undefined}><b>{Number(k.slice(8))}</b><small>{k === now.date ? '今日' : WD[weekday(k)]}</small></Link>)}
       </div>
+      {d === now.date && <div style={{ marginBottom: 14 }}><NowWorking initial={nowBoard} /></div>}
       <section className="summary s4">
         <div className="card"><div className="k">{dateLabel(d)}の実績人件費{d === now.date ? '（現在まで）' : ''}</div><div className="big num">{yen(totalCost)}<small>／予定 {yen(totalPlan)}</small></div></div>
         <div className="card"><div className="k">勤務中・休憩中</div><div className="mid num">{rows.filter((r) => r.sum.state === 'working' || r.sum.state === 'break').length}人</div></div>
