@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { listStaff } from '@/lib/data';
-import { payslipMonths, payslipsForMonth, payslipById, recentImports, getImportSecret } from '@/lib/payslips';
+import { payslipMonths, payslipsForMonth, payslipById, recentImports, getImportSecret, slipPins } from '@/lib/payslips';
+import { requireManager } from '@/lib/auth';
 import { gasScript } from '@/lib/gas-script';
 import { PayslipView } from '@/components/PayslipView';
 import { UploadForm, ScriptBox, RotateSecret } from './PayslipAdmin';
@@ -22,7 +23,8 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
       </div>
     );
   }
-  const [months, imports, staff, secret] = await Promise.all([payslipMonths(), recentImports(), listStaff(), getImportSecret(true)]);
+  const me = await requireManager();
+  const [months, imports, staff, secret, pins] = await Promise.all([payslipMonths(), recentImports(), listStaff(), getImportSecret(true), me.role === 'admin' ? slipPins() : Promise.resolve([])]);
   const sel = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : months[0] ? `${months[0].work_year}-${String(months[0].work_month).padStart(2, '0')}` : null;
   const [y, m] = sel ? sel.split('-').map(Number) : [0, 0];
   const slips = sel ? await payslipsForMonth(y, m) : [];
@@ -56,6 +58,24 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
         </table></div>
       ) : <div className="empty" style={{ marginBottom: 16 }}><b>まだ明細がありません</b>下の手順で Gmail と連携するか、PDFを取り込んでください。</div>}
       {sel && missing.length > 0 && <p className="sub" style={{ marginTop: -6 }}>この月の明細がない人：{missing.map((s) => s.name).join('、')}（その月に勤務がなかった場合など）</p>}
+
+      {me.role === 'admin' && (
+        <section className="card" style={{ marginBottom: 14 }}>
+          <details className="pinlist">
+            <summary><b>全員の明細の暗証番号</b><span className="sub">（管理者だけに表示・押すと開きます）</span></summary>
+            <div className="pins">
+              {pins.map((x) => (
+                <div key={x.id} className="pinrow">
+                  <span>{x.name}</span>
+                  {x.slip_pin ? <b className="num">{x.slip_pin}</b> : x.has_pin ? <span className="sub">不明（消して決め直してもらう）</span> : <span className="sub">未設定</span>}
+                  {x.locked && <span className="flag f-late">ロック中</span>}
+                </div>
+              ))}
+            </div>
+            <p className="sub" style={{ margin: '8px 0 0' }}>本人が初めて「明細」を開いたときに決めた番号です。消すときは「スタッフ・時給 → 編集 → 明細の暗証番号を消す」。</p>
+          </details>
+        </section>
+      )}
 
       <section className="card" style={{ marginBottom: 14 }}>
         <b>Gmail から自動で取り込む</b>

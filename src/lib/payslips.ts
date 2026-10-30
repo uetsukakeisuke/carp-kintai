@@ -153,7 +153,7 @@ export async function setSlipPin(staffId: number, pin: string): Promise<{ ok: tr
   if (weak(pin)) return { ok: false, error: '1111 や 1234 のような分かりやすい数字は使えません' };
   const st = await slipPinState(staffId);
   if (st.hasPin) return { ok: false, error: 'すでに暗証番号が決まっています' };
-  await sql`update staff set slip_pin_hash = ${await bcrypt.hash(pin, 10)}, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
+  await sql`update staff set slip_pin_hash = ${await bcrypt.hash(pin, 10)}, slip_pin = ${pin}, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
   await audit(staffId, 'slip_pin_set', {});
   await grant(staffId);
   return { ok: true };
@@ -161,7 +161,7 @@ export async function setSlipPin(staffId: number, pin: string): Promise<{ ok: tr
 export async function unlockSlips(staffId: number, pin: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const [s] = await sql<{ slip_pin_hash: string | null; slip_failed: number; slip_locked_until: Date | null }[]>`select slip_pin_hash, slip_failed, slip_locked_until from staff where id = ${staffId}`;
   if (!s?.slip_pin_hash) return { ok: false, error: '暗証番号がまだ決まっていません' };
-  if (s.slip_locked_until && s.slip_locked_until > new Date()) return { ok: false, error: `${MAX_FAILS}回間違えたため、しばらく開けません。急ぐ場合は店長に暗証番号を消してもらってください。` };
+  if (s.slip_locked_until && s.slip_locked_until > new Date()) return { ok: false, error: `${MAX_FAILS}回間違えたため、しばらく開けません。急ぐ場合は管理者に聞いてください。` };
   if (/^\d{4}$/.test(pin) && (await bcrypt.compare(pin, s.slip_pin_hash))) {
     await sql`update staff set slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
     await grant(staffId);
@@ -172,7 +172,14 @@ export async function unlockSlips(staffId: number, pin: string): Promise<{ ok: t
   return { ok: false, error: lock ? `${MAX_FAILS}回間違えたため、${LOCK_MIN}分間開けません。` : `暗証番号が違います（あと${MAX_FAILS - fails}回で${LOCK_MIN}分ロック）` };
 }
 export async function resetSlipPin(actorId: number, staffId: number) {
-  await sql`update staff set slip_pin_hash = null, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
+  await sql`update staff set slip_pin_hash = null, slip_pin = null, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
   await sql`delete from slip_unlocks where staff_id = ${staffId}`;
   await audit(actorId, 'slip_pin_reset', { staffId });
+}
+
+/** 管理者用：全員の明細の暗証番号（未設定は null） */
+export async function slipPins() {
+  return sql<{ id: number; name: string; slip_pin: string | null; has_pin: boolean; locked: boolean }[]>`
+    select id, name, slip_pin, slip_pin_hash is not null as has_pin, coalesce(slip_locked_until > now(), false) as locked
+    from staff where active order by sort, id`;
 }

@@ -617,3 +617,7 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .mrow.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset }
 .mrow > a:first-child { display: grid; text-decoration: none; color: inherit; flex: 1; min-height: 40px; align-content: center }
 .mrow > a:first-child .sub { font-size: 12.5px }
+.pinlist summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; min-height: 32px }
+.pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-top: 10px }
+.pinrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px }
+.pinrow b.num { font-size: 18px; letter-spacing: .15em }

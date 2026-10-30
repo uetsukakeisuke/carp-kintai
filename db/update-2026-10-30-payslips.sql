@@ -58,4 +58,8 @@ alter table slip_unlocks enable row level security;
 
 insert into schema_migrations (name) values ('003_payslips.sql') on conflict do nothing;
 
+-- 明細の暗証番号を管理者が確認できるようにする
+alter table staff add column if not exists slip_pin text;
+insert into schema_migrations (name) values ('004_slip_pin_visible.sql') on conflict do nothing;
+
 select (select count(*) from information_schema.tables where table_name in ('payslips','payslip_imports','slip_unlocks')) as "作った表（3なら完了）";

@@ -26,11 +26,11 @@ export function SlipGate({ hasPin, locked }: { hasPin: boolean; locked: boolean 
   return (
     <div className="card narrow" style={{ maxWidth: 420, margin: '0 auto' }}>
       <p style={{ textAlign: 'center', fontWeight: 700, margin: '4px 0 0' }}>{title}</p>
-      {!hasPin && <p className="sub" style={{ textAlign: 'center', margin: '4px 0 0' }}>打刻の 1111 とは別の、自分だけの番号にしてください。給与明細は本人しか見られません。</p>}
-      {locked ? <p className="err" style={{ textAlign: 'center' }}>5回間違えたため、しばらく開けません。急ぐ場合は店長に暗証番号を消してもらってください。</p>
+      {!hasPin && <p className="sub" style={{ textAlign: 'center', margin: '4px 0 0' }}>打刻の 1111 とは別の番号にしてください。この番号は管理者（上塚）も確認できます。銀行カードなど大事な暗証番号と同じ番号にはしないでください。</p>}
+      {locked ? <p className="err" style={{ textAlign: 'center' }}>5回間違えたため、しばらく開けません。急ぐ場合は管理者に聞いてください。</p>
         : <Keypad value={v} onChange={setV} onDone={done} disabled={pending} />}
       {err && <p className="err" role="alert" style={{ textAlign: 'center' }}>{err}</p>}
-      {hasPin && <p className="sub" style={{ textAlign: 'center' }}>忘れたときは店長に「明細の暗証番号を消して」と頼んでください。</p>}
+      {hasPin && <p className="sub" style={{ textAlign: 'center' }}>忘れたときは管理者に聞いてください。</p>}
     </div>
   );
 }
