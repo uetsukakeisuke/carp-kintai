@@ -586,3 +586,27 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
   .tbl.stack.dense td .flag { margin-left: 4px }
 }
 @media (max-width: 760px) { .tbl.stack.dense td.full > span { margin-left: 0 !important } }
+
+/* ===== 給与明細 ===== */
+.slip { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px }
+.slip-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line) }
+.slip-name { font-size: 18px }
+.slip-net { text-align: right } .slip-net b { display: block; font-size: 28px; color: var(--accent) }
+.slip-sum { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 0 }
+.slip-sum b { color: var(--ink); font-size: 15px }
+.slip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@media (max-width: 760px) { .slip-grid { grid-template-columns: 1fr } .slip-net { text-align: left } }
+.slip-block h3 { font-size: 13px; margin: 6px 0 4px; color: var(--muted); letter-spacing: .06em }
+.slip-block dl { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden }
+.slip-block dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 14px }
+.slip-block dl > div:last-child { border-bottom: 0 }
+.slip-block dt { color: var(--ink) } .slip-block dd { margin: 0; white-space: nowrap }
+.slip-block dl > div.total { background: var(--surface-2); font-weight: 700 }
+.slipmonths { display: grid; gap: 8px }
+.slipmonth { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; text-decoration: none; color: inherit; min-height: 56px }
+.slipmonth[aria-current="page"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset }
+.slipmonth b.num { font-size: 16px }
+.codebox { position: relative }
+.codebox pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; max-height: 260px; white-space: pre; margin: 0 }
+.codebox .btn { position: absolute; top: 8px; right: 8px }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px }

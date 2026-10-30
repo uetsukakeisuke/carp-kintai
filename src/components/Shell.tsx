@@ -8,6 +8,7 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/me/calendar', label: 'カレンダー', icon: '▦' },
   { href: '/me/hopes', label: 'シフト希望', short: '希望', icon: '✎' },
   { href: '/me/shifts', label: 'みんなのシフト', short: 'シフト表', icon: '☰' },
+  { href: '/me/payslips', label: '給与明細', short: '明細', icon: '¥' },
   { href: '/me/settings', label: '設定', icon: '⚙' },
 ];
 // PC：上のタブ ／ スマホ：下のバー（よく使う4つ＋その他）
@@ -17,8 +18,9 @@ export const MANAGE_NAV: NavItem[] = [
   { href: '/manage/attendance', label: '勤怠実績', short: '勤怠', icon: '◷' },
   { href: '/manage/report', label: '給与報告', short: '給与報告', icon: '⇩' },
   { href: '/manage/staff', label: 'スタッフ・時給', short: 'スタッフ', icon: '☺' },
+  { href: '/manage/payslips', label: '給与明細', bottom: false },
   { href: '/manage/settings', label: '店舗・端末', bottom: false },
-  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/settings'] },
+  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings'] },
 ];
 
 export function Shell({ user, manager, area, badges, children }: {

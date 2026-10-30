@@ -3,7 +3,9 @@ import type { NextConfig } from 'next';
 const config: NextConfig = {
   // 給与報告のひな形（Excel）をサーバーに同梱する
   outputFileTracingIncludes: { '/api/report': ['./templates/**'] },
-  serverExternalPackages: ['bcryptjs'],
+  serverExternalPackages: ['bcryptjs', 'unpdf'],
+  // 給与明細PDFの手動アップロード用
+  experimental: { serverActions: { bodySizeLimit: '5mb' } },
   poweredByHeader: false,
   async headers() {
     return [{

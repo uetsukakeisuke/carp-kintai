@@ -9,6 +9,7 @@ import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages } from '@/lib/data';
 import { minWageAt, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
+import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 const KINDS: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
@@ -249,4 +250,58 @@ export async function disableTerminalAction(managerId: number, pin: string): Pro
 export async function whoami() {
   const u = await requireUser();
   return { id: u.id, name: u.name, manager: isManager(u) };
+}
+
+// ---------- 給与明細 ----------
+export async function uploadPayslipsAction(form: FormData): Promise<Result> {
+  const u = await requireManager();
+  const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) return { ok: false, error: 'PDFを選んでください' };
+  if (files.some((f) => f.size > 4_000_000)) return { ok: false, error: 'ファイルが大きすぎます（4MBまで）' };
+  const r = await importPayslipFiles(
+    await Promise.all(files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))),
+    { source: 'upload', actorId: u.id },
+  );
+  revalidatePath('/manage/payslips');
+  if (!r.ok) return { ok: false, error: r.error ?? '取り込めませんでした' };
+  return { ok: true, message: `${r.slips}人分の明細を取り込みました${r.unmatched.length ? `（スタッフと結びつかない人：${r.unmatched.join('、')}）` : ''}` };
+}
+export async function assignPayslipAction(slipName: string, staffId: number): Promise<Result> {
+  const u = await requireManager();
+  if (!staffId) return { ok: false, error: 'スタッフを選んでください' };
+  await assignPayslips(u.id, String(slipName), Number(staffId));
+  revalidatePath('/manage/payslips');
+  return { ok: true, message: Number(staffId) === -1 ? '対象外にしました' : '結びつけました。次回からは自動で結びつきます' };
+}
+export async function rotateImportSecretAction(): Promise<Result> {
+  const u = await requireManager();
+  await rotateImportSecret();
+  await audit(u.id, 'import_secret_rotated', {});
+  revalidatePath('/manage/payslips');
+  return { ok: true, message: '合言葉を作り直しました。Gmail側のスクリプトも新しい合言葉に書き換えてください' };
+}
+export async function setSlipPinAction(pin: string): Promise<Result> {
+  const u = await requireUser();
+  const r = await setSlipPin(u.id, String(pin));
+  if (!r.ok) return r;
+  revalidatePath('/me/payslips');
+  return { ok: true, message: '暗証番号を決めました' };
+}
+export async function unlockSlipsAction(pin: string): Promise<Result> {
+  const u = await requireUser();
+  const r = await unlockSlips(u.id, String(pin));
+  if (!r.ok) return r;
+  revalidatePath('/me/payslips');
+  return { ok: true };
+}
+export async function lockSlipsAction(): Promise<Result> {
+  await requireUser();
+  await lockSlips();
+  revalidatePath('/me/payslips');
+  return { ok: true, message: '明細を閉じました' };
+}
+export async function resetSlipPinAction(staffId: number): Promise<Result> {
+  const u = await requireManager();
+  await resetSlipPin(u.id, Number(staffId));
+  return { ok: true, message: '明細の暗証番号を消しました。本人が次に開くときに決め直します' };
 }

@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { saveStaffAction, addWageAction, resetPinAction, raiseToMinWageAction, type StaffInput } from '@/app/actions';
+import { saveStaffAction, addWageAction, resetPinAction, resetSlipPinAction, raiseToMinWageAction, type StaffInput } from '@/app/actions';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
 
@@ -115,6 +115,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
             <div className="actions">
               {edit.id !== null && <>
                 {edit.role !== 'staff' && <button className="btn left" disabled={pending} onClick={() => run(() => resetPinAction(edit.id!), () => setEdit(null))}>パスワードを1111に戻す</button>}
+                {edit.id && <button className="btn left" disabled={pending} onClick={() => run(() => resetSlipPinAction(edit.id!), () => setEdit(null))}>明細の暗証番号を消す</button>}
                 <button className="btn danger" disabled={pending} onClick={() => run(() => saveStaffAction(edit.id, { ...edit, active: !edit.active }), () => setEdit(null))}>{edit.active ? '退職にする' : '在籍に戻す'}</button>
               </>}
               <button className="btn" onClick={() => setEdit(null)}>キャンセル</button>
