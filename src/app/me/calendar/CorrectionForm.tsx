@@ -5,6 +5,7 @@ import { requestCorrectionAction } from '@/app/actions';
 import type { PunchKind } from '@/lib/calc';
 import { PUNCH_LABEL } from '@/components/PunchLog';
 import { useToast } from '@/components/Toast';
+import { call } from '@/lib/call';
 
 const TIMES: number[] = []; for (let x = 300; x <= 1740; x += 5) TIMES.push(x);
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
@@ -41,7 +42,7 @@ export function CorrectionForm({ date, current, suggested, planStart, planEnd }:
       <div className="actions">
         <button className="btn" style={{ flex: 1 }} onClick={() => setOpen(false)}>やめる</button>
         <button className="btn primary" style={{ flex: 2 }} disabled={pending} onClick={() => start(async () => {
-          const r = await requestCorrectionAction(date, kind, minute, reason);
+          const r = await call(() => requestCorrectionAction(date, kind, minute, reason));
           if (!r.ok) { setErr(r.error); return; }
           setOpen(false); setReason(''); toast(r.message ?? '申請しました'); router.refresh();
         })}>申請する</button>

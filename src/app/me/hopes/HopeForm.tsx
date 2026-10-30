@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveHopesAction } from '@/app/actions';
 import { useToast } from '@/components/Toast';
+import { call } from '@/lib/call';
 
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const TIMES: number[] = []; for (let x = 360; x <= 1740; x += 30) TIMES.push(x);
@@ -14,6 +15,12 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
   const [hopes, setHopes] = useState<Record<string, { start: number; end: number }>>(() => Object.fromEntries(initial.map((h) => [h.date, { start: h.start, end: h.end }])));
   const [last, setLast] = useState({ start: 600, end: 1020 });
   const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
   const [pending, start] = useTransition();
   const [toast, node] = useToast();
   const router = useRouter();
@@ -29,7 +36,7 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
   const bad = list.find(([, v]) => v.end <= v.start);
 
   const save = (submit: boolean) => start(async () => {
-    const r = await saveHopesAction(year, month, list.map(([date, v]) => ({ date, start: v.start, end: v.end })), submit);
+    const r = await call(() => saveHopesAction(year, month, list.map(([date, v]) => ({ date, start: v.start, end: v.end })), submit));
     toast(r.ok ? r.message ?? '保存しました' : r.error);
     if (r.ok) { setDirty(false); router.refresh(); }
   });
@@ -66,7 +73,7 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
       <div className="submitbar">
         <button className="btn primary" style={{ flex: '1 1 auto', fontSize: 15 }} disabled={pending || !!bad} onClick={() => save(true)}>{submitted ? '修正を提出する' : '希望を提出する'}</button>
         {dirty && <button className="btn" disabled={pending} onClick={() => save(false)}>下書き保存</button>}
-        <span className="sub">出勤希望 {list.length}日 ・ 合計 {(total / 60).toFixed(1)}時間</span>
+        <span className="sub">出勤希望 {list.length}日 ・ 合計 {(total / 60).toFixed(1)}時間{pending ? ' ・ 保存中…' : dirty ? ' ・ まだ保存していない変更があります' : ''}</span>
       </div>
       {node}
     </>

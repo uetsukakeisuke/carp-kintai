@@ -8,6 +8,7 @@ import { PunchButtons } from '@/components/PunchButtons';
 import { PUNCH_LABEL } from '@/components/PunchLog';
 import { Clock } from '@/components/Clock';
 import { Keypad } from '@/components/Keypad';
+import { call } from '@/lib/call';
 
 export function PunchPanel({ allowed, reClockIn }: { allowed: PunchKind[]; reClockIn: boolean; serverNow: number }) {
   const router = useRouter();
@@ -27,7 +28,7 @@ export function PunchPanel({ allowed, reClockIn }: { allowed: PunchKind[]; reClo
   const close = () => { setKind(null); setCode(''); setErr(''); };
   // 打刻コード（全員 1111）を入れると記録する
   const submit = (v: string) => start(async () => {
-    const r = await punchAction(kind!, v);
+    const r = await call(() => punchAction(kind!, v));
     if (!r.ok) { setErr(r.error); setCode(''); return; }
     close();
     toast(r.message ?? '記録しました');

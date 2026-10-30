@@ -5,6 +5,7 @@ import { saveShiftAction, deleteShiftAction, publishAction } from '@/app/actions
 import { planCost, wageAt, minWageAt, type WageRate, type MinWage } from '@/lib/calc';
 import { useToast } from '@/components/Toast';
 import { Timeline } from '@/components/Timeline';
+import { call } from '@/lib/call';
 
 type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number };
 type Staff = { id: number; name: string; employment: string; transport: number };
@@ -46,6 +47,12 @@ export function ShiftBoard(p: {
     const el = document.getElementById(`ds-${sel}`), box = el?.parentElement;
     if (el && box) box.scrollTo({ left: el.offsetLeft - box.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
   }, [sel, view]);
+  useEffect(() => {
+    if (!pending) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pending]);
   const changeView = (v: 'month' | 'day') => { setView(v); try { localStorage.setItem('kintai-shift-view', v); } catch {} };
 
   const rate = (id: number, date: string) => wageAt(p.rates[id] ?? [], date) ?? 0;
@@ -86,12 +93,12 @@ export function ShiftBoard(p: {
     if (status === 'published') setStatus('changed');
     setEd(null);
     start(async () => {
-      const r = del ? await deleteShiftAction(p.store.id, staffId, key(d)) : await saveShiftAction(p.store.id, staffId, key(d), s, e);
+      const r = await call(() => (del ? deleteShiftAction(p.store.id, staffId, key(d)) : saveShiftAction(p.store.id, staffId, key(d), s, e)));
       if (!r.ok) { toast(r.error); setShifts((x) => { const n = { ...x }; if (before) n[k] = before; else delete n[k]; return n; }); }
     });
   };
   const publish = () => start(async () => {
-    const r = await publishAction(p.store.id, p.year, p.month);
+    const r = await call(() => publishAction(p.store.id, p.year, p.month));
     setConfirm(false);
     if (r.ok) { setStatus('published'); toast(r.message ?? '公開しました'); router.refresh(); } else toast(r.error);
   });
@@ -113,6 +120,7 @@ export function ShiftBoard(p: {
         <div className="card"><div className="k">予算超過の日</div><div className={`mid num ${overDays ? 'bad-t' : 'ok-t'}`}>{overDays}日</div></div>
         <div className="card"><div className="k">総労働時間</div><div className="mid num">{(totals.work / 60).toFixed(1)}h</div><div className="sub">希望外 {mis}件</div></div>
         <div className="card" style={{ display: 'grid', gap: 8, alignContent: 'center' }}>{pill}
+          <span className={`savestate${pending ? '' : ' ok'}`} aria-live="polite">{pending ? '保存中…' : '✓ 入力はすべて保存済み'}</span>
           {status !== 'published' ? <button className="btn primary" onClick={() => setConfirm(true)} disabled={pending}>{status === 'draft' ? 'シフトを確定・公開' : '変更を公開'}</button> : <button className="btn" disabled>公開済み</button>}</div>
       </section>
       <div className="legend">

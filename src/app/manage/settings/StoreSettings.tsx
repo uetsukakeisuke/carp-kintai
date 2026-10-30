@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveStoreAction, enableTerminalAction } from '@/app/actions';
 import { useToast } from '@/components/Toast';
+import { call } from '@/lib/call';
 
 type St = { id: number | null; name: string; active: boolean; b: number[] };
 const LABELS = ['月〜木', '金曜', '土日'];
@@ -15,7 +16,7 @@ export function StoreSettings({ stores }: { stores: St[] }) {
   const [term, setTerm] = useState<number | null>(stores.find((s) => s.active)?.id ?? null);
   const upd = (i: number, v: Partial<St>) => setList((l) => l.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const save = (s: St) => start(async () => {
-    const r = await saveStoreAction(s.id, s.name, s.b[0], s.b[1], s.b[2], s.active);
+    const r = await call(() => saveStoreAction(s.id, s.name, s.b[0], s.b[1], s.b[2], s.active));
     toast(r.ok ? r.message ?? '保存しました' : r.error);
     router.refresh();
   });

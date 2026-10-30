@@ -8,6 +8,7 @@ import { Clock } from '@/components/Clock';
 import { PunchButtons } from '@/components/PunchButtons';
 import { PunchLog, STATE_LABEL } from '@/components/PunchLog';
 import { useToast } from '@/components/Toast';
+import { call } from '@/lib/call';
 
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 type Row = { id: number; name: string; state: string; plan: { start: number; end: number } | null };
@@ -31,12 +32,12 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   const close = () => { setSel(null); setPin(''); setPunches(null); setErr(''); };
   const check = (v: string) => start(async () => {
     setErr('');
-    const r = await terminalStateAction(sel!.id, v);
+    const r = await call(() => terminalStateAction(sel!.id, v));
     if (!r.ok) { setErr(r.error); setPin(''); return; }
     setPunches(r.punches);
   });
   const punch = (k: PunchKind) => start(async () => {
-    const r = await terminalPunchAction(sel!.id, pin, k);
+    const r = await call(() => terminalPunchAction(sel!.id, pin, k));
     const name = sel!.name;
     close();
     toast(r.ok ? `${name}さん ${r.message}` : r.error);
@@ -89,7 +90,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
             <select className="sel" value={mgr} onChange={(e) => setMgr(Number(e.target.value))} style={{ width: '100%', marginBottom: 8 }}>
               {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
-            <Keypad value={pin} onChange={setPin} disabled={pending} onDone={(v) => start(async () => { const r = await disableTerminalAction(mgr, v); if (r && !r.ok) { setErr(r.error); setPin(''); } })} />
+            <Keypad value={pin} onChange={setPin} disabled={pending} onDone={(v) => start(async () => { const r = await call(() => disableTerminalAction(mgr, v)); if (r && !r.ok) { setErr(r.error); setPin(''); } })} />
             {err && <p className="err">{err}</p>}
             <div className="actions"><button className="btn" onClick={() => { setAdmin(false); setPin(''); setErr(''); }}>やめる</button></div>
           </div>

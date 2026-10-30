@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 import { changePinAction } from '../actions';
 import { Keypad } from '@/components/Keypad';
+import { call } from '@/lib/call';
 
 export function PinForm({ canCancel }: { canCancel: boolean }) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
@@ -18,7 +19,7 @@ export function PinForm({ canCancel }: { canCancel: boolean }) {
     if (step === 1) { setNext(v); setVal(''); setStep(2); return; }
     if (v !== next) { setErr('2回の入力が一致しません。新しいパスワードからやり直してください。'); setVal(''); setStep(1); return; }
     start(async () => {
-      const r = await changePinAction(cur, next);
+      const r = await call(() => changePinAction(cur, next));
       if (r && !r.ok) { setErr(r.error); setVal(''); setStep(r.error.includes('違います') || r.error.includes('ロック') ? 0 : 1); }
     });
   };

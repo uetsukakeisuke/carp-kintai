@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { loginAction } from '../actions';
 import { Keypad } from '@/components/Keypad';
+import { call } from '@/lib/call';
 
 const KEY = 'kintai-last-staff';
 
@@ -20,7 +21,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
     if (s.pin) { setSel(s.id); return; }
     setErr('');
     start(async () => {
-      const r = await loginAction(s.id, null);
+      const r = await call(() => loginAction(s.id, null));
       if (r && !r.ok) setErr(r.error);
     });
   };
@@ -30,7 +31,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
     setErr('');
     start(async () => {
       try { localStorage.setItem(KEY, String(sel)); } catch {}
-      const r = await loginAction(sel, v);
+      const r = await call(() => loginAction(sel, v));
       if (r && !r.ok) { setErr(r.error); setPin(''); }
     });
   };

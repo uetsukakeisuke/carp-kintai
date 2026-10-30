@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { saveStaffAction, addWageAction, resetPinAction, raiseToMinWageAction, type StaffInput } from '@/app/actions';
 import { useToast } from '@/components/Toast';
+import { call } from '@/lib/call';
 
 type S = {
   id: number; name: string; kana: string; role: 'staff' | 'manager' | 'admin'; employment: string; payType: string; storeId: number | null;
@@ -26,7 +27,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
   const low = staff.filter((s) => s.active && (s.belowNow || s.belowNext));
   const run = (f: () => Promise<{ ok: true; message?: string } | { ok: false; error: string }>, close: () => void) => start(async () => {
     setErr('');
-    const r = await f();
+    const r = await call(f);
     if (!r.ok) { setErr(r.error); return; }
     close(); toast(r.message ?? '保存しました'); router.refresh();
   });
