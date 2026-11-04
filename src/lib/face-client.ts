@@ -51,3 +51,17 @@ export const FACE_ERR: Record<string, string> = {
   load: '顔認証の準備ができませんでした。通信状況を確認してください。',
   camera: 'カメラを使えませんでした。「写真を撮る」から撮影してください。',
 };
+
+/** 顔パス用：顔を1つ見つけ、特徴と「画面に対する顔の大きさ」を返す（遠くを通る人を除くため） */
+export type Detected = { d: number[]; size: number } | { err: 'noface' | 'many' };
+export async function detectFace(src: HTMLVideoElement | HTMLCanvasElement): Promise<Detected> {
+  const fa = await loadFace();
+  const W = src instanceof HTMLVideoElement ? src.videoWidth : src.width;
+  const dets = await fa.detectAllFaces(src, new fa.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks(true).withFaceDescriptors();
+  if (!dets.length) return { err: 'noface' };
+  // 一番大きい顔（いちばん近い人）を使う。同じくらいの大きさの顔が2つあれば判断しない
+  const sorted = [...dets].sort((a, b) => b.detection.box.width - a.detection.box.width);
+  if (sorted.length > 1 && sorted[1].detection.box.width > sorted[0].detection.box.width * 0.8) return { err: 'many' };
+  const top = sorted[0];
+  return { d: Array.from(top.descriptor).map((x) => Math.round(x * 1e5) / 1e5), size: W ? top.detection.box.width / W : 0 };
+}

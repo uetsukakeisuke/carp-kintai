@@ -147,6 +147,7 @@ with sync_playwright() as p:
     login(tp, '田中 翔', '3691')
     tp.goto(BASE + '/manage/settings'); tp.click('button:has-text("この端末を店舗端末にする")'); tp.wait_for_url('**/terminal')
     ok('店舗端末モードになる', '/terminal' in tp.url)
+    tp.click('.seg a:has-text("名前を選ぶ")')
     tp.locator('.tcard', has_text='伊藤 さくら').click(); tp.wait_for_selector('.modal .pbtns')
     tp.click('.modal .pbtn.p-in'); keypad(tp, '1111'); skipface(tp); tp.wait_for_selector('.toast')
     ok('端末で出勤できる', '伊藤 さくら' in tp.inner_text('.toast'))

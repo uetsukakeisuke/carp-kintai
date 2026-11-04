@@ -16,3 +16,13 @@ export function getLocalFace(staffId: number) { return read()[String(staffId)] ?
 export function saveLocalFace(staffId: number, d: number[]) { const s = read(); s[String(staffId)] = { d, at: new Date().toISOString() }; return write(s); }
 export function clearLocalFace(staffId: number) { const s = read(); delete s[String(staffId)]; write(s); }
 export function faceDistance(a: number[], b: number[]) { let s = 0; for (let i = 0; i < a.length; i++) { const x = a[i] - b[i]; s += x * x; } return Math.round(Math.sqrt(s) * 1000) / 1000; }
+
+/** この端末に登録された全員と比べ、一番近い人を返す（顔パス用） */
+export function identify(d: number[]): { staffId: number; dist: number; second: number } | null {
+  const all = Object.entries(read());
+  if (!all.length) return null;
+  const ds = all.map(([id, f]) => ({ staffId: Number(id), dist: faceDistance(d, f.d) })).sort((a, b) => a.dist - b.dist);
+  return { staffId: ds[0].staffId, dist: ds[0].dist, second: ds[1]?.dist ?? 9 };
+}
+export function registeredIds(): number[] { return Object.keys(read()).map(Number); }
+export const PASS_THRESHOLD = 0.45; // 顔パス（全員から見分ける）は1対1より厳しめ

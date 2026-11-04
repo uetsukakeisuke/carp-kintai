@@ -80,10 +80,11 @@ export async function terminalPunchAction(staffId: number, code: string, kind: P
   const t = await currentTerminal();
   if (!t) return { ok: false, error: 'この端末は店舗端末として設定されていません' };
   if (!KINDS.includes(kind)) return { ok: false, error: '打刻の種類が正しくありません' };
-  if (kind !== 'out' && !punchCodeOk(code)) return { ok: false, error: CODE_ERR }; // 退勤は打刻コード不要
+  const f = faceOf(face);
+  // 退勤と、顔パスで本人と確認できた打刻は、打刻コード不要
+  if (kind !== 'out' && f?.face !== 'ok' && !punchCodeOk(code)) return { ok: false, error: CODE_ERR };
   const [s] = await sql<{ id: number }[]>`select id from staff where id = ${Number(staffId)} and active`;
   if (!s) return { ok: false, error: 'このスタッフは利用できません' };
-  const f = faceOf(face);
   const r = await recordPunch(Number(staffId), kind, 'terminal', f);
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }

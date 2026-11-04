@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { terminalStateAction, terminalPunchAction, disableTerminalAction, checkPunchCodeAction } from '@/app/actions';
 import { NEXT, lastKind, type PunchKind } from '@/lib/calc';
@@ -11,6 +11,7 @@ import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
 import { FaceStep } from '@/components/FaceStep';
 import { loadFace } from '@/lib/face-client';
+import { FacePass } from './FacePass';
 
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 type Row = { id: number; name: string; state: string; plan: { start: number; end: number } | null };
@@ -28,6 +29,11 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   const [pending, start] = useTransition();
   const [toast, node] = useToast();
   const [admin, setAdmin] = useState(false);
+  // 顔パス（カメラの前に立つだけ）と、名前を選んで打刻を切り替える。端末ごとに覚えておく
+  const [mode, setMode] = useState<'face' | 'name' | null>(null);
+  useEffect(() => { let m: string | null = null; try { m = localStorage.getItem('kintai-terminal-mode'); } catch {} setMode(m === 'name' ? 'name' : 'face'); }, []);
+  const faceRows = useMemo(() => rows.map((r) => ({ id: r.id, name: r.name })), [rows]);
+  const changeMode = (m: 'face' | 'name') => { setMode(m); try { localStorage.setItem('kintai-terminal-mode', m); } catch {} };
   const [mgr, setMgr] = useState<number>(managers[0]?.id ?? 0);
 
   // 最新の状態にし続ける（1分ごと）。入力中は止める。
@@ -67,7 +73,13 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
         <h1 style={{ margin: 0, fontSize: 20 }}>{storeName} 打刻</h1>
         <button className="btn ghost" onClick={() => setAdmin(true)}>端末の設定</button>
       </div>
+      <div className="seg" role="group" aria-label="打刻のしかた" style={{ margin: '8px auto 0', display: 'flex', width: 'max-content' }}>
+        <a href="#" onClick={(e) => { e.preventDefault(); changeMode('face'); }} aria-current={mode === 'face' ? 'page' : undefined}>顔パス</a>
+        <a href="#" onClick={(e) => { e.preventDefault(); changeMode('name'); }} aria-current={mode === 'name' ? 'page' : undefined}>名前を選ぶ</a>
+      </div>
       <Clock />
+      {mode === 'face' && <FacePass rows={faceRows} onPunched={() => router.refresh()} onNameMode={() => changeMode('name')} />}
+      {mode === 'name' && <>
       <p className="sub" style={{ textAlign: 'center', marginTop: 0 }}>自分の名前を押して打刻してください（退勤以外は打刻コード4桁が必要です）。</p>
       <div className="termgrid">
         {rows.map((r) => (
@@ -78,6 +90,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
           </button>
         ))}
       </div>
+      </>}
       {sel && (
         <div className="scrim" onClick={(e) => e.target === e.currentTarget && close()}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="tm">
