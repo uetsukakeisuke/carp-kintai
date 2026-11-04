@@ -157,6 +157,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
             : cam === 'starting' || !ready ? '顔パスを準備しています…'
             : p.t === 'reg-capture' ? `${p.row.name}さん、カメラに顔を向けてください（自動で登録します）`
             : hint || 'カメラに顔を近づけてください'}
+          {cam === 'on' && ready && p.t === 'scan' && <small className="fp-mask">マスクの方は、一瞬マスクを下げてカメラを見てください</small>}
         </div>
         {(p.t === 'found' || p.t === 'loading' || p.t === 'done') && (
           <div className={`fp-card${p.t === 'done' && p.bad ? ' bad' : ''}`} role="dialog" aria-live="assertive">
@@ -198,7 +199,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
       {p.t === 'unknown' && (
         <div className="fp-panel">
           <b>この端末に登録されていない顔です</b>
-          <p className="sub" style={{ margin: '4px 0 8px' }}>はじめての方は顔を登録してください。登録済みなのに見分けられないときは、名前を選んで打刻できます。</p>
+          <p className="sub" style={{ margin: '4px 0 8px' }}>はじめての方は顔を登録してください（登録はマスクを外して）。登録済みなのに見分けられないときは、マスクや帽子を外してもう一度立つか、名前を選んで打刻できます。</p>
           <div className="row" style={{ gap: 8 }}>
             <button className="btn primary" onClick={() => setPhase({ t: 'reg-name' })}>顔を登録する</button>
             <button className="btn" onClick={onNameMode}>名前を選んで打刻</button>
@@ -235,6 +236,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
               <li>目的：勤怠打刻の本人確認（顔パス）だけに使います</li>
               <li>写真は保存しません。顔の特徴を表す数値だけを、<b>この端末の中に</b>保存します（会社のサーバーには送りません）</li>
               <li>登録すると、次からはカメラの前に立つだけで本人と判定されます</li>
+              <li>マスクを外して、正面からカメラを見てください</li>
             </ul>
             <label><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /> 内容を理解し、同意します</label>
           </div>
