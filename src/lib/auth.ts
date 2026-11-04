@@ -116,6 +116,13 @@ export async function requireManager(): Promise<User> {
   return u;
 }
 
+/** 管理者（上塚さん）だけ。単価・粗利など、店長にも見せないもの */
+export async function requireAdmin(): Promise<User> {
+  const u = await requireManager();
+  if (u.role !== 'admin') redirect('/manage/shifts');
+  return u;
+}
+
 export async function changePin(staffId: number, current: string, next: string): Promise<{ ok: boolean; error?: string }> {
   if (!validPin(next)) return { ok: false, error: '新しいパスワードは数字4桁にしてください。' };
   if (next === INITIAL_PIN) return { ok: false, error: '1111 以外の数字にしてください。' };

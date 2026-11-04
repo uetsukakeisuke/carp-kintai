@@ -1,16 +1,19 @@
 import Link from 'next/link';
+import { requireManager } from '@/lib/auth';
 
 const ITEMS = [
   { href: '/manage/hopes', title: '希望の提出状況', desc: '誰がシフト希望を出したか、提出締切の設定' },
   { href: '/manage/payslips', title: '給与明細', desc: 'アクトヴィジョンの明細の取り込み（Gmail連携）と、全員の明細の確認' },
   { href: '/manage/settings', title: '店舗・端末', desc: '店舗ごとの人件費予算、休憩室のタブレットを店舗端末にする' },
+  { href: '/manage/orders', title: '受発注の報告', desc: '京都工房の台帳から、納期の遅れ・未入荷・未請求をまとめる（管理者だけ）', admin: true },
   { href: '/me/punch', title: '自分の打刻', desc: '店長・管理者自身の出勤・退勤' },
   { href: '/pin', title: '自分のパスワード（4桁）を変える', desc: '店長・管理者のログイン用' },
 ];
-export default function MorePage() {
+export default async function MorePage() {
+  const u = await requireManager();
   return (
     <div className="narrow list">
-      {ITEMS.map((it) => (
+      {ITEMS.filter((it) => !('admin' in it) || u.role === 'admin').map((it) => (
         <Link key={it.href} href={it.href} className="item" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="item-h"><b>{it.title}</b><span className="end sub" aria-hidden="true">›</span></div>
           {it.desc && <span className="sub">{it.desc}</span>}

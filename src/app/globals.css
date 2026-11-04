@@ -677,3 +677,26 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 @media (orientation: landscape) and (max-height: 600px) { .fp { max-width: 820px; grid-template-columns: 1fr 1fr; align-items: start } .fp-cam { aspect-ratio: 4 / 3 } }
 .fp-mask { display: block; margin-top: 4px; font-size: 13px; font-weight: 400; opacity: .9 }
 .fp-speed { position: absolute; right: 8px; top: -22px; font-size: 11px; font-weight: 400; color: rgba(255,255,255,.75) }
+
+/* ===== 受発注の報告（管理者） ===== */
+.ord-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px }
+.ord-card { display: grid; gap: 2px; text-decoration: none; color: inherit; border-left: 4px solid var(--line) }
+.ord-card .k { font-size: 12.5px; color: var(--muted) }
+.ord-card b { font-size: 26px; line-height: 1.1 } .ord-card b small { font-size: 13px; margin-left: 2px; font-weight: 400; color: var(--muted) }
+.ord-card.bad { border-left-color: var(--bad) } .ord-card.bad b { color: var(--bad) }
+.ord-card.warn { border-left-color: var(--warn) } .ord-card.warn b { color: var(--warn) }
+.ord-card.zero b { color: var(--faint) }
+@media (max-width: 760px) { .ord-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px } .ord-card b { font-size: 22px } }
+.lineprev { position: relative }
+.lineprev pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--f-body); font-size: 14px; line-height: 1.6;
+  background: var(--ok-soft); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 12px 14px; max-width: 560px }
+.lineprev .btn { margin-top: 8px }
+.ord-sec { margin: 0 0 18px; scroll-margin-top: 70px }
+.ord-sec h2 { font-size: 16px; margin: 0 0 2px; display: flex; align-items: baseline; gap: 8px }
+.ord-sec > .sub { margin: 0 0 8px; font-size: 12.5px }
+.ord-n { font-size: 12px; font-weight: 700; color: var(--bad); background: var(--bad-soft); padding: 1px 8px; border-radius: 99px }
+.ord-n.zero { color: var(--muted); background: var(--ng) }
+.ord-none { margin: 0; color: var(--muted); font-size: 13px }
+.ord-grp + .ord-grp { margin-top: 10px }
+.ord-grp h3 { font-size: 14px; margin: 0 0 6px }
+.ord-tbl td.head b { word-break: break-all }

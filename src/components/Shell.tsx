@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { logoutAction } from '@/app/actions';
 import { NavLinks } from './NavLinks';
 
-type NavItem = { href: string; label: string; short?: string; icon?: string; bottom?: boolean; tab?: boolean; also?: string[] };
+type NavItem = { href: string; label: string; short?: string; icon?: string; bottom?: boolean; tab?: boolean; also?: string[]; admin?: boolean };
 export const STAFF_NAV: NavItem[] = [
   { href: '/me/punch', label: '打刻', icon: '◷' },
   { href: '/me/calendar', label: 'カレンダー', icon: '▦' },
@@ -20,13 +20,14 @@ export const MANAGE_NAV: NavItem[] = [
   { href: '/manage/staff', label: 'スタッフ・時給', short: 'スタッフ', icon: '☺' },
   { href: '/manage/payslips', label: '給与明細', bottom: false },
   { href: '/manage/settings', label: '店舗・端末', bottom: false },
-  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings'] },
+  { href: '/manage/orders', label: '受発注の報告', bottom: false, admin: true },
+  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders'] },
 ];
 
 export function Shell({ user, manager, area, badges, children }: {
-  user: { name: string }; manager: boolean; area: 'me' | 'manage'; badges?: Record<string, number>; children: React.ReactNode;
+  user: { name: string; role?: string }; manager: boolean; area: 'me' | 'manage'; badges?: Record<string, number>; children: React.ReactNode;
 }) {
-  const nav = area === 'me' ? STAFF_NAV : MANAGE_NAV;
+  const nav = (area === 'me' ? STAFF_NAV : MANAGE_NAV).filter((n) => !n.admin || user.role === 'admin');
   return (
     <>
       <header className="top"><div className="top-in">

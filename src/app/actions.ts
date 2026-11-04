@@ -3,13 +3,14 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import {
   login, logout, changePin, requireUser, requireManager, resetPin, verifyPin, currentTerminal, enableTerminal, disableTerminal,
-  hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser,
+  hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser, requireAdmin,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
 import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
+import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 const KINDS: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
@@ -346,4 +347,22 @@ export async function editPunchesAction(staffId: number, date: string, items: { 
   await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
   revalidatePath('/manage/attendance');
   return { ok: true, message: '勤怠を直しました' };
+}
+
+// ---------- 受発注の報告（管理者だけ） ----------
+export async function setLedgerSheetAction(url: string): Promise<Result> {
+  const u = await requireAdmin();
+  const id = sheetIdOf(String(url ?? ''));
+  if (!id) return { ok: false, error: 'スプレッドシートのURLを貼り付けてください（https://docs.google.com/spreadsheets/d/… の形）' };
+  await setLedgerSheet(id);
+  await audit(u.id, 'ledger_sheet_set', {});
+  revalidatePath('/manage/orders');
+  return { ok: true, message: '台帳を登録しました。下のスクリプトをコピーしてください' };
+}
+export async function rotateLedgerSecretAction(): Promise<Result> {
+  const u = await requireAdmin();
+  await rotateLedgerSecret();
+  await audit(u.id, 'ledger_secret_rotated', {});
+  revalidatePath('/manage/orders');
+  return { ok: true, message: '合言葉を作り直しました。スクリプトを貼り直してください' };
 }
