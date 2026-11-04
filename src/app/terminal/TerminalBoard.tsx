@@ -14,7 +14,7 @@ import { loadFace } from '@/lib/face-client';
 import { FacePass } from './FacePass';
 
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
-type Row = { id: number; name: string; state: string; plan: { start: number; end: number } | null };
+type Row = { id: number; name: string; state: string; plan: { start: number; end: number } | null; punches: { kind: PunchKind; minute: number }[] };
 
 export function TerminalBoard({ storeName, rows, managers }: { storeName: string; rows: Row[]; managers: { id: number; name: string }[] }) {
   const router = useRouter();
@@ -32,7 +32,7 @@ export function TerminalBoard({ storeName, rows, managers }: { storeName: string
   // 顔パス（カメラの前に立つだけ）と、名前を選んで打刻を切り替える。端末ごとに覚えておく
   const [mode, setMode] = useState<'face' | 'name' | null>(null);
   useEffect(() => { let m: string | null = null; try { m = localStorage.getItem('kintai-terminal-mode'); } catch {} setMode(m === 'name' ? 'name' : 'face'); }, []);
-  const faceRows = useMemo(() => rows.map((r) => ({ id: r.id, name: r.name })), [rows]);
+  const faceRows = useMemo(() => rows.map((r) => ({ id: r.id, name: r.name, punches: r.punches })), [rows]);
   const changeMode = (m: 'face' | 'name') => { setMode(m); try { localStorage.setItem('kintai-terminal-mode', m); } catch {} };
   const [mgr, setMgr] = useState<number>(managers[0]?.id ?? 0);
 

@@ -20,7 +20,7 @@ export default async function TerminalPage() {
     const ps = openPrev ? prev : punches.filter((p) => p.staff_id === s.id && p.work_date === now.date);
     const sh = shifts.find((x) => x.staff_id === s.id);
     const sum = summarizeDay(ps, { now: openPrev ? now.minute + 1440 : now.minute, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
-    return { id: s.id, name: s.name, state: sum.state, plan: sh ? { start: sh.start_min, end: sh.end_min } : null };
+    return { id: s.id, name: s.name, state: sum.state, plan: sh ? { start: sh.start_min, end: sh.end_min } : null, punches: ps.map((x) => ({ kind: x.kind, minute: x.minute })) };
   });
   return <TerminalBoard storeName={t.store_name} rows={rows} managers={managers} />;
 }

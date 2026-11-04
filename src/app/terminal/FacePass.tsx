@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { terminalStateAction, terminalPunchAction, checkPunchCodeAction } from '@/app/actions';
 import { NEXT, lastKind, type PunchKind } from '@/lib/calc';
-import { detectFace, loadFace } from '@/lib/face-client';
+import { detectFace, loadFace, faceBackend } from '@/lib/face-client';
 import { identify, saveLocalFace, PASS_THRESHOLD } from '@/lib/face-local';
 import { Keypad } from '@/components/Keypad';
 import { PUNCH_LABEL } from '@/components/PunchLog';
@@ -16,7 +16,7 @@ import { call } from '@/lib/call';
  *  - 登録されていない顔 → 「はじめての方」から、名前と打刻コードで本人が登録
  * 顔の特徴はこの端末の中だけに保存し、サーバーには照合の結果だけを送る。
  */
-type Row = { id: number; name: string };
+type Row = { id: number; name: string; punches?: { kind: PunchKind; minute: number }[] };
 type Found = { id: number; name: string; punches: { kind: PunchKind; minute: number }[]; dist: number | null; registered: boolean; code: string };
 type Phase =
   | { t: 'scan' } | { t: 'loading'; name: string } | { t: 'found'; f: Found; countdown: number | null }
@@ -25,6 +25,9 @@ type Phase =
 
 const MIN_SIZE = 0.22; // 画面の幅に対する顔の幅。これより小さい（遠い）顔は無視する
 const AUTO_SEC = 3; // 出勤までの秒数
+const SURE = 0.38; // これより近く、2番目の人と十分離れていれば1回の判定で確定（速い）
+const GONE_MS = 1200; // 打刻した人がカメラの前から離れたとみなす時間
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 
 export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunched: () => void; onNameMode: () => void }) {
@@ -38,8 +41,10 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
   const [pin, setPin] = useState('');
   const [agree, setAgree] = useState(false);
   const [err, setErr] = useState('');
-  const cooldown = useRef(new Map<number, number>()); // 打刻した人をしばらく無視する
+  // 打刻した人は、カメラの前にいる間だけ無視する（離れたらすぐ次の判定ができる）
+  const ignore = useRef<{ id: number; until: number; seen: number } | null>(null);
   const streak = useRef<{ id: number; n: number; unknown: number }>({ id: 0, n: 0, unknown: 0 });
+  const [speed, setSpeed] = useState<number | null>(null);
 
   // カメラ・顔の判定の準備、画面を消さない
   useEffect(() => {
@@ -61,8 +66,9 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
     return () => { alive = false; stream?.getTracks().forEach((t) => t.stop()); lock?.release().catch(() => {}); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
-  const back = useCallback((coolId?: number, sec = 8) => {
-    if (coolId) cooldown.current.set(coolId, Date.now() + sec * 1000);
+  const back = useCallback((coolId?: number, maxSec = 8) => {
+    // coolId＝0 は「登録されていない顔」の案内を閉じたとき（しばらく同じ案内を出さない）
+    if (coolId !== undefined) ignore.current = { id: coolId, until: Date.now() + maxSec * 1000, seen: Date.now() };
     streak.current = { id: 0, n: 0, unknown: 0 };
     setPin(''); setAgree(false); setErr('');
     setPhase({ t: 'scan' });
@@ -73,16 +79,21 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
     const r = await call(() => terminalPunchAction(f.id, f.code, kind, f.registered ? { r: 'registered' } : { r: 'ok', dist: f.dist ?? undefined }));
     setPhase({ t: 'done', text: r.ok ? `${f.name}さん　${r.message}` : r.error, bad: !r.ok });
     if (r.ok) onPunched();
-    setTimeout(() => { if (phaseRef.current.t === 'done') back(f.id, 60); }, 3500);
+    // 打刻した人は、前に立ち続けていても2秒たてば（離れて戻ればすぐ）また画面を出す
+    setTimeout(() => { if (phaseRef.current.t === 'done') back(f.id, 2); }, 1500);
   }, [back, onPunched]);
 
   // 本人とわかったら、その人の今日の状態を読み、出勤前なら自動で出勤へ
   const found = useCallback(async (row: Row, dist: number | null, registered = false, code = '') => {
-    setPhase({ t: 'loading', name: row.name });
+    const show = (punches: { kind: PunchKind; minute: number }[]) =>
+      setPhase({ t: 'found', f: { id: row.id, name: row.name, punches, dist, registered, code }, countdown: punches.length === 0 ? AUTO_SEC : null });
+    if (row.punches) show(row.punches); else setPhase({ t: 'loading', name: row.name });
     const x = await call(() => terminalStateAction(row.id));
-    if (!x.ok) { setPhase({ t: 'done', text: x.error, bad: true }); setTimeout(() => back(row.id), 3000); return; }
-    const f: Found = { id: row.id, name: row.name, punches: x.punches, dist, registered, code };
-    setPhase({ t: 'found', f, countdown: x.punches.length === 0 ? AUTO_SEC : null });
+    const cur = phaseRef.current;
+    if (!x.ok) { if (!row.punches) { setPhase({ t: 'done', text: x.error, bad: true }); setTimeout(() => back(row.id), 3000); } return; }
+    // スマホで打刻していたなど、端末の情報が古かったときだけ画面を直す
+    const stillMe = (cur.t === 'found' && cur.f.id === row.id) || (cur.t === 'loading' && cur.name === row.name);
+    if (stillMe && (!row.punches || x.punches.length !== row.punches.length)) show(x.punches);
   }, [back]);
 
   // 自動出勤のカウントダウン
@@ -101,48 +112,62 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
   }, [phase, back]);
   useEffect(() => {
     if (phase.t !== 'unknown') return;
-    const t = setTimeout(() => { if (phaseRef.current.t === 'unknown') back(); }, 8000);
+    const t = setTimeout(() => { if (phaseRef.current.t === 'unknown') back(0, 8); }, 8000);
     return () => clearTimeout(t);
   }, [phase, back]);
 
-  // 顔を探し続ける
+  // 顔を探し続ける（前の判定が終わったらすぐ次。何もいないときは少し間をあける）
   useEffect(() => {
     if (!ready || cam !== 'on') return;
-    let alive = true, running = false;
-    const tick = async () => {
-      const p = phaseRef.current, v = video.current;
-      if (!alive || running || !v || v.readyState < 2 || (p.t !== 'scan' && p.t !== 'reg-capture')) return;
-      running = true;
-      try {
-        const r = await detectFace(v);
-        const cur = phaseRef.current;
-        if (!alive) return;
-        if ('err' in r) { setHint(r.err === 'many' ? '1人ずつカメラの前に立ってください' : ''); streak.current.n = 0; return; }
-        if (r.size < MIN_SIZE) { setHint('もう少しカメラに近づいてください'); streak.current.n = 0; return; }
-        setHint('');
-        if (cur.t === 'reg-capture') {
-          saveLocalFace(cur.row.id, r.d);
-          await found(cur.row, null, true, cur.code);
-          return;
-        }
-        const m = identify(r.d);
-        if (!m || m.dist >= PASS_THRESHOLD) {
-          streak.current.n = 0;
-          if (++streak.current.unknown >= 3) setPhase({ t: 'unknown' });
-          return;
-        }
-        streak.current.unknown = 0;
-        if ((cooldown.current.get(m.staffId) ?? 0) > Date.now()) return;
-        const s = streak.current;
-        if (s.id === m.staffId) s.n++; else { s.id = m.staffId; s.n = 1; }
-        if (s.n >= 2) { // 2回続けて同じ人と判定したら本人とみなす
-          const row = rows.find((x) => x.id === m.staffId);
-          if (row) await found(row, m.dist);
-        }
-      } catch { /* 次の回にもう一度 */ } finally { running = false; }
-    };
-    const t = setInterval(tick, 600);
-    return () => { alive = false; clearInterval(t); };
+    let alive = true;
+    (async () => {
+      while (alive) {
+        const p = phaseRef.current, v = video.current;
+        if (!v || v.readyState < 2 || (p.t !== 'scan' && p.t !== 'reg-capture')) { await sleep(200); continue; }
+        let gap = 120;
+        const t0 = performance.now();
+        try {
+          const r = await detectFace(v, MIN_SIZE);
+          if (!alive) break;
+          const cur = phaseRef.current;
+          if ('err' in r) {
+            streak.current.n = 0;
+            setHint(r.err === 'many' ? '1人ずつカメラの前に立ってください' : r.err === 'far' ? 'もう少しカメラに近づいてください' : '');
+            if (r.err === 'noface') gap = 250;
+          } else {
+            setHint('');
+            setSpeed(Math.round(performance.now() - t0));
+            if (cur.t === 'reg-capture') {
+              saveLocalFace(cur.row.id, r.d);
+              await found(cur.row, null, true, cur.code);
+            } else if (cur.t === 'scan') {
+              const m = identify(r.d);
+              const now = Date.now(), ig = ignore.current;
+              if (ig && now > ig.until) ignore.current = null;
+              if (ig && ig.id && now - ig.seen > GONE_MS) ignore.current = null; // 前から離れた
+              if (!m || m.dist >= PASS_THRESHOLD) {
+                streak.current.n = 0;
+                if (ignore.current && !ignore.current.id) { /* 未登録の案内を閉じた直後 */ } else if (++streak.current.unknown >= 3) setPhase({ t: 'unknown' });
+              } else if (ignore.current && ignore.current.id === m.staffId) {
+                ignore.current.seen = now; // 打刻した人がまだ前にいる
+                streak.current = { id: 0, n: 0, unknown: 0 };
+              } else {
+                streak.current.unknown = 0;
+                const st = streak.current;
+                if (st.id === m.staffId) st.n++; else { st.id = m.staffId; st.n = 1; }
+                const sure = m.dist < SURE && m.second - m.dist > 0.08;
+                if (sure || st.n >= 2) {
+                  const row = rows.find((x) => x.id === m.staffId);
+                  if (row) { streak.current = { id: 0, n: 0, unknown: 0 }; await found(row, m.dist); }
+                }
+              }
+            }
+          }
+        } catch { gap = 500; }
+        await sleep(gap);
+      }
+    })();
+    return () => { alive = false; };
   }, [ready, cam, rows, found]);
 
   const p = phase;
@@ -158,6 +183,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
             : p.t === 'reg-capture' ? `${p.row.name}さん、カメラに顔を向けてください（自動で登録します）`
             : hint || 'カメラに顔を近づけてください'}
           {cam === 'on' && ready && p.t === 'scan' && <small className="fp-mask">マスクの方は、一瞬マスクを下げてカメラを見てください</small>}
+          {speed !== null && <small className="fp-speed">判定 {(speed / 1000).toFixed(2)}秒・{faceBackend === 'webgl' ? 'GPU' : faceBackend.toUpperCase()}</small>}
         </div>
         {(p.t === 'found' || p.t === 'loading' || p.t === 'done') && (
           <div className={`fp-card${p.t === 'done' && p.bad ? ' bad' : ''}`} role="dialog" aria-live="assertive">
@@ -203,7 +229,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
           <div className="row" style={{ gap: 8 }}>
             <button className="btn primary" onClick={() => setPhase({ t: 'reg-name' })}>顔を登録する</button>
             <button className="btn" onClick={onNameMode}>名前を選んで打刻</button>
-            <button className="btn ghost" onClick={() => back()}>戻る</button>
+            <button className="btn ghost" onClick={() => back(0, 8)}>戻る</button>
           </div>
         </div>
       )}
