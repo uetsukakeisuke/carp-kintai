@@ -12,6 +12,8 @@ import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
 import { newCalToken, dropCalToken } from '@/lib/calendar';
+import { autoDraft, undoAutoDraft, saveForecastParams } from '@/lib/forecast-data';
+import { readParams, type Window as DraftWindow, type DraftDay } from '@/lib/forecast';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -423,4 +425,30 @@ export async function dropCalTokenAction(): Promise<Result> {
   await dropCalToken(u.id);
   revalidatePath('/me/settings');
   return { ok: true, message: 'URLを取り消しました。カレンダーには新しい予定が入らなくなります' };
+}
+
+// ---------- 作業量の予測・シフトの下書きの自動作成 ----------
+export async function saveForecastAction(input: unknown): Promise<Result> {
+  const u = await requireManager();
+  const p = readParams(input);
+  await saveForecastParams(u.id, p);
+  revalidatePath('/manage/forecast');
+  return { ok: true, message: '保存しました' };
+}
+export type AutoDraftReply = { ok: true; message: string; batch: number; added: DraftWindow[]; days: DraftDay[]; ledger: boolean; using: 'learned' | 'prior' } | { ok: false; error: string };
+export async function autoDraftAction(storeId: number, year: number, month: number): Promise<AutoDraftReply> {
+  const u = await requireManager();
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return { ok: false, error: '月が正しくありません' };
+  try {
+    const r = await autoDraft(u.id, Number(storeId), year, month);
+    return { ok: true, message: r.added.length ? `${r.added.length}コマを下書きに入れました` : '入れられるシフトはありませんでした', ...r };
+  } catch (e) {
+    console.error('[auto-draft]', e);
+    return { ok: false, error: '下書きを作れませんでした。データベースの準備（SQL）が済んでいるか確認してください' };
+  }
+}
+export async function undoAutoDraftAction(storeId: number, batch: number): Promise<{ ok: true; message: string; removed: DraftWindow[] } | { ok: false; error: string }> {
+  const u = await requireManager();
+  const removed = await undoAutoDraft(u.id, Number(storeId), Number(batch));
+  return { ok: true, message: `${removed.length}コマを取り消しました（あとから時間を直したものは残しています）`, removed };
 }

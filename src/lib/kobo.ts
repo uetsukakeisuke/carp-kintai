@@ -18,6 +18,8 @@ export type OrderRow = {
   line: number;          // スプレッドシートの行番号
   part: string;          // 管理番・部品名
   qty: string;
+  qtyN: number;          // 個数（数値）
+  kg: number;            // 総重量（kg）。なければ 単重×個数
   supplier: string;
   customer: string;
   amount: number;        // 売上の合計（税抜き）
@@ -44,6 +46,7 @@ export type Report = {
   unpaid: Unpaid[];
   issues: Issue[];
   fallbackColumns: string[]; // 見出しが見つからず、決まった位置で読んだ列
+  rows: OrderRow[];          // 読んだ注文の行すべて（作業量の予測に使う）
 };
 
 export const SOON_DAYS = 7;
@@ -159,6 +162,8 @@ export function termsMap(rows: Cell[][]): Map<string, Closing | null> {
 const COLS = {
   part: { find: (h: string) => h.includes('部品名') || h.includes('管理番'), at: 1, label: '管理番/部品名' },
   qty: { find: (h: string) => h === '個数', at: 2, label: '個数' },
+  unitKg: { find: (h: string) => h === '単重kg', at: 3, label: '単重kg' },
+  totalKg: { find: (h: string) => h === '総重kg', at: 4, label: '総重kg' },
   supplier: { find: (h: string) => h === '仕入先', at: 12, label: '仕入先' },
   customer: { find: (h: string) => h === '客先', at: 18, label: '客先' },
   custDue: { find: (h: string) => h === '客先納入日', at: 23, label: '客先納入日' },
@@ -198,7 +203,7 @@ function columns(head: Cell[]): { at: Record<ColKey, number>; fallback: string[]
 
 // ---------- 組み立て ----------
 export function buildReport(orders: Cell[][], terms: Cell[][], today: string): Report {
-  const r: Report = { today, read: 0, overdue: [], soon: [], late: [], unbilled: [], unpaid: [], issues: [], fallbackColumns: [] };
+  const r: Report = { today, read: 0, overdue: [], soon: [], late: [], unbilled: [], unpaid: [], issues: [], fallbackColumns: [], rows: [] };
   if (!orders.length) return r;
   const hi = headerRow(orders);
   const { at, fallback } = columns(orders[hi]);
@@ -234,13 +239,16 @@ export function buildReport(orders: Cell[][], terms: Cell[][], today: string): R
     if (cd === 'bad') r.issues.push({ line, part, what: `客先納入日が読めません（${text(get('custDue'))}）` });
     if (sd === 'bad') r.issues.push({ line, part, what: `仕入納期が読めません（${text(get('supDue'))}）` });
 
+    const qtyN = Math.max(0, yen(get('qty')));
+    const kg = Math.max(0, yen(get('totalKg')) || yen(get('unitKg')) * qtyN);
     const row: OrderRow = {
-      line, part, qty: text(get('qty')), supplier, customer, amount,
+      line, part, qty: text(get('qty')), qtyN, kg, supplier, customer, amount,
       custDue: cd === 'bad' ? null : cd, supDue: sd === 'bad' ? null : sd,
       received: isDone(get('received')), delivered: isDone(get('delivered')),
       inspected: isDone(get('inspected')), invoiced: isDone(get('invoiced')),
       orderNo: text(get('orderNo')), fromStock: supplier === '在', toStock: customer === '在',
     };
+    r.rows.push(row);
 
     if (!row.fromStock && !supplier && !row.received) r.issues.push({ line, part, what: '仕入先が空欄です' });
 

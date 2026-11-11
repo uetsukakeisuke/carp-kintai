@@ -5,6 +5,8 @@ import { saveShiftAction, deleteShiftAction, publishAction } from '@/app/actions
 import { planCost, wageAt, minWageAt, type WageRate, type MinWage } from '@/lib/calc';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
+import { AutoDraft } from './AutoDraft';
+import type { Window } from '@/lib/forecast';
 
 type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number };
 type Staff = { id: number; name: string; employment: string; transport: number; monthly?: boolean };
@@ -107,6 +109,20 @@ export function ShiftBoard(p: {
     if (r.ok) { setStatus('published'); toast(r.message ?? '公開しました'); router.refresh(); } else toast(r.error);
   });
 
+  // 自動で作った下書きを画面にも反映する
+  const names = useMemo(() => Object.fromEntries(p.staff.map((s) => [s.id, s.name])), [p.staff]);
+  const addAuto = (ws: Window[]) => {
+    if (!ws.length) return;
+    setShifts((x) => { const n = { ...x }; for (const w of ws) n[`${w.staffId}|${w.date}`] = { s: w.s, e: w.e }; return n; });
+    if (status === 'published') setStatus('changed');
+  };
+  const removeAuto = (ws: Window[]) => {
+    if (!ws.length) return;
+    setShifts((x) => { const n = { ...x }; for (const w of ws) delete n[`${w.staffId}|${w.date}`]; return n; });
+    if (status === 'published') setStatus('changed');
+  };
+  const auto = (compact?: boolean) => <AutoDraft storeId={p.store.id} year={p.year} month={p.month} names={names} onAdded={addAuto} onRemoved={removeAuto} compact={compact} />;
+
   const ratio = budget ? totals.cost / budget : 0;
   const publishBtn = status !== 'published'
     ? <button className="btn primary" onClick={() => setConfirm(true)} disabled={pending}>{status === 'draft' ? 'シフトを確定・公開' : '変更を公開'}</button>
@@ -129,6 +145,7 @@ export function ShiftBoard(p: {
         <div className="card"><div className="k">総労働時間</div><div className="mid num">{(totals.work / 60).toFixed(1)}h</div><div className="sub">希望外 {mis}件</div></div>
         <div className="card" style={{ display: 'grid', gap: 8, alignContent: 'center' }}>{pill}
           <span className={`savestate${pending ? '' : ' ok'}`} aria-live="polite">{pending ? '保存中…' : '✓ 入力はすべて保存済み'}</span>
+          {auto()}
           {publishBtn}</div>
       </section>
       {/* スマホ：1枚にまとめる */}
@@ -137,7 +154,7 @@ export function ShiftBoard(p: {
         <div className="ssum-cost"><b className="num">{yen(totals.cost)}</b><span className="sub">／予算 {yen(budget)}</span><b className={`num ssum-pct ${ratio > 1 ? 'bad-t' : 'ok-t'}`}>{(ratio * 100).toFixed(0)}%</b></div>
         <div className={`budgetbar${ratio > 1 ? ' over' : ''}`} style={{ marginTop: 0 }}><i style={{ width: `${Math.min(ratio, 1) * 100}%` }} /></div>
         <div className="ssum-meta"><span>予算超過 <b className={overDays ? 'bad-t' : ''}>{overDays}日</b></span><span>労働 <b>{(totals.work / 60).toFixed(0)}h</b></span><span>希望外 <b className={mis ? 'warn-t' : ''}>{mis}件</b></span><span>入力 <b>{filled}/{nd}日</b></span></div>
-        {publishBtn}
+        <div className="ssum-btns">{auto(true)}{publishBtn}</div>
       </section>
 
       <div className="legend">

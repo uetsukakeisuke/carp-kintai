@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { checkLedgerSecret, cleanGrid, saveSnapshot } from '@/lib/ledger';
+import { checkLedgerSecret, cleanGrid, saveSnapshot, latestSnapshot } from '@/lib/ledger';
+import { recordLedgerChanges } from '@/lib/forecast-data';
 import { buildReport } from '@/lib/kobo';
 import { jstParts } from '@/lib/time';
 
@@ -17,10 +18,14 @@ export async function POST(req: Request) {
   const orders = cleanGrid(body.orders), terms = cleanGrid(body.terms, 2);
   if (!orders || orders.length < 2 || !terms) return NextResponse.json({ ok: false, error: '受発注履歴が空です' }, { status: 400 });
   const gid = Number.isInteger(body.gid) ? (body.gid as number) : undefined;
+  const prev = await latestSnapshot();
   const saved = await saveSnapshot(orders, terms, { gid });
+  // 前回から「仕入」「客先納品」が済になった行を、今日の作業として記録（作業量の予測の学習用）。失敗しても取り込みは成功にする
+  let events = 0;
+  try { events = await recordLedgerChanges(prev?.orders ?? null, orders); } catch (e) { console.error('[ledger] 作業の記録に失敗', e); }
   const r = buildReport(orders, terms, jstParts().date);
   return NextResponse.json({
-    ok: true, rows: saved.rows, read: r.read,
+    ok: true, rows: saved.rows, read: r.read, events,
     counts: { overdue: r.overdue.length, soon: r.soon.length, late: r.late.length, unbilled: r.unbilled.length, issues: r.issues.length },
   });
 }
