@@ -11,6 +11,7 @@ import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
+import { newCalToken, dropCalToken } from '@/lib/calendar';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -408,4 +409,18 @@ export async function toggleTaskAction(id: number, done: boolean): Promise<Resul
   if (e) return { ok: false, error: e };
   taskPaths();
   return { ok: true, message: done ? '済にしました' : '未に戻しました' };
+}
+
+// ---------- 自分のカレンダーに入れるURL ----------
+export async function newCalTokenAction(): Promise<Result> {
+  const u = await requireUser();
+  await newCalToken(u.id);
+  revalidatePath('/me/settings');
+  return { ok: true, message: 'カレンダー用のURLを作りました' };
+}
+export async function dropCalTokenAction(): Promise<Result> {
+  const u = await requireUser();
+  await dropCalToken(u.id);
+  revalidatePath('/me/settings');
+  return { ok: true, message: 'URLを取り消しました。カレンダーには新しい予定が入らなくなります' };
 }

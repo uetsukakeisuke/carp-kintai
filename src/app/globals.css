@@ -750,3 +750,10 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .taskcard { margin-top: 14px }
 .taskcard .item-h { margin-bottom: 4px }
 .cc .ctk { font-size: 9.5px; line-height: 1; color: var(--accent); font-weight: 700 }
+
+/* ===== 自分のカレンダーに入れる ===== */
+.cal-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+.cal-btns .btn { justify-content: center; text-align: center; text-decoration: none }
+@media (max-width: 420px) { .cal-btns { grid-template-columns: 1fr } }
+.cal-notes { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px }
+.cal-more { margin-top: 10px } .cal-more summary { cursor: pointer; color: var(--muted); font-size: 13px }

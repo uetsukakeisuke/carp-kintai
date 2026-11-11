@@ -84,6 +84,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         )}
         {!sh && s.firstIn === null && !tasks.some((t) => t.work_date === sel) && <div className="sub">この日は予定も出勤もありません。</div>}
       </div>
+      <p className="sub" style={{ marginTop: 12 }}>シフトと予定表は、Googleカレンダーやスマホのカレンダーにも自動で入れられます → <Link href="/me/settings">設定</Link></p>
     </div>
   );
 }

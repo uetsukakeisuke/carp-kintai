@@ -1,10 +1,15 @@
 import Link from 'next/link';
 import { requireUser, isManager } from '@/lib/auth';
 import { logoutAction } from '@/app/actions';
+import { headers } from 'next/headers';
 import { FaceReset } from './FaceReset';
+import { CalLink } from './CalLink';
+import { calToken } from '@/lib/calendar';
 
 export default async function SettingsPage() {
   const u = await requireUser();
+  const [token, h] = await Promise.all([calToken(u.id), headers()]);
+  const url = token ? `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('host')}/cal/${token}.ics` : null;
   return (
     <div className="narrow" style={{ display: 'grid', gap: 12 }}>
       <div className="card"><b>{u.name} さん</b></div>
@@ -13,6 +18,7 @@ export default async function SettingsPage() {
         <span>パスワード（4桁）を変える</span><Link className="btn" href="/pin">変更する</Link>
       </div>
       )}
+      <CalLink url={url} />
       <FaceReset staffId={u.id} />
       <div className="card">
         <b>スマホのホーム画面に追加する</b>
