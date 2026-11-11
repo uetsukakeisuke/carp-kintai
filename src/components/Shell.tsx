@@ -11,17 +11,18 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/me/payslips', label: '給与明細', short: '明細', icon: '¥' },
   { href: '/me/settings', label: '設定', icon: '⚙' },
 ];
-// PC：上のタブ ／ スマホ：下のバー（よく使う4つ＋その他）
+// PC：上のタブ ／ スマホ：下のバー（よく使う4つ＋その他）。給与報告（月1回）はスマホでは「その他」から
 export const MANAGE_NAV: NavItem[] = [
   { href: '/manage/shifts', label: 'シフト作成', short: 'シフト', icon: '▦' },
+  { href: '/manage/tasks', label: '予定表', short: '予定', icon: '✓' },
   { href: '/manage/hopes', label: '希望の提出状況', bottom: false },
   { href: '/manage/attendance', label: '勤怠実績', short: '勤怠', icon: '◷' },
-  { href: '/manage/report', label: '給与報告', short: '給与報告', icon: '⇩' },
+  { href: '/manage/report', label: '給与報告', short: '給与報告', icon: '⇩', bottom: false },
   { href: '/manage/staff', label: 'スタッフ・時給', short: 'スタッフ', icon: '☺' },
   { href: '/manage/payslips', label: '給与明細', bottom: false },
   { href: '/manage/settings', label: '店舗・端末', bottom: false },
   { href: '/manage/orders', label: '受発注の報告', bottom: false, admin: true },
-  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders'] },
+  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders', '/manage/report'] },
 ];
 
 export function Shell({ user, manager, area, badges, children }: {

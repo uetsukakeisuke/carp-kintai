@@ -700,3 +700,53 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .ord-grp + .ord-grp { margin-top: 10px }
 .ord-grp h3 { font-size: 14px; margin: 0 0 6px }
 .ord-tbl td.head b { word-break: break-all }
+
+/* ===== 予定表 ===== */
+.tks { list-style: none; margin: 0; padding: 0 }
+.tk { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--line) }
+.tks > .tk:first-child { border-top: 0 }
+.tk-cb { width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--ok); flex: none; cursor: pointer }
+.tk-dot { width: 24px; text-align: center; color: var(--accent); font-size: 10px; line-height: 24px; flex: none }
+.tk-body { flex: 1 1 0; min-width: 0 }
+.tk-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 15px; line-height: 1.45 }
+.tk-text { word-break: break-word }
+.tk-at { color: var(--accent); font-weight: 700; font-size: 14px }
+.tk-tag { font-size: 11px; padding: 0 7px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
+.tk-tag.carry { background: var(--warn-soft); color: var(--warn) }
+.tk-note { font-size: 13px; color: var(--muted); white-space: pre-wrap; word-break: break-word; margin-top: 2px }
+.tk-done { font-size: 12px; color: var(--ok); margin-top: 2px }
+.tk.done .tk-text { text-decoration: line-through; color: var(--muted) }
+.tk-edit { flex: none; min-height: 34px; padding: 0 12px; font-size: 13px }
+.tk-who { flex: none; font-size: 12px; color: var(--muted); align-self: center }
+.tk-form { flex-basis: 100%; display: grid; gap: 8px; padding: 10px 12px; margin-top: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px }
+.tk-form-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
+@media (max-width: 760px) { .tk-form-row { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.tk-form textarea { resize: vertical; min-height: 56px; font: inherit }
+.tk-add { display: grid; gap: 6px; margin-top: 8px }
+.tk-add-line, .tk-add-more { display: flex; gap: 6px }
+.tk-add-t { flex: 1 1 0; min-width: 0 }
+.tk-add-line .btn { flex: none; padding: 0 16px }
+.tk-add-more .sel { flex: 1 1 0; min-width: 0 }
+.tk-add-at { flex: 0 0 120px; min-width: 0 }
+.tk-add-who { width: 100% }
+.tk-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 10px; margin-bottom: 10px }
+.tk-people .tk-sec { margin: 0 }
+.tk-sec { margin-bottom: 10px }
+.tk-sh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 4px }
+.tk-sh b { font-size: 15px }
+.tk-left { margin-bottom: 12px; border-left: 4px solid var(--warn) }
+.tk-week { display: flex; gap: 4px; align-items: stretch; margin-bottom: 12px; overflow-x: auto }
+.tk-week > .btn { flex: none; min-width: 32px; padding: 0 }
+@media (max-width: 760px) { .tk-week { gap: 3px } .tk-week > .btn { min-width: 26px } .tk-day b { font-size: 15px } }
+.tk-day { flex: 1 1 0; min-width: 0; display: grid; justify-items: center; gap: 0; padding: 5px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; line-height: 1.25 }
+.tk-day small { font-size: 11px; color: var(--muted) } .tk-day b { font-size: 16px }
+.tk-day i { font-style: normal; font-size: 10.5px; color: var(--muted); min-height: 13px }
+.tk-day.sat small { color: var(--sat) } .tk-day.sun small { color: var(--sun) }
+.tk-day.today { border-color: var(--accent) }
+.tk-day[aria-current="page"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.tk-day[aria-current="page"] small, .tk-day[aria-current="page"] i { color: var(--accent-ink) }
+.tk-h { font-size: 12px; font-weight: 700; color: var(--muted); margin: 8px 0 0; letter-spacing: .04em }
+.tk-h:first-child { margin-top: 0 }
+.taskcard { margin-top: 14px }
+.taskcard .item-h { margin-bottom: 4px }
+.cc .ctk { font-size: 9.5px; line-height: 1; color: var(--accent); font-weight: 700 }

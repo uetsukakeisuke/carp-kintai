@@ -11,6 +11,7 @@ import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
+import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 const KINDS: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
@@ -365,4 +366,46 @@ export async function rotateLedgerSecretAction(): Promise<Result> {
   await audit(u.id, 'ledger_secret_rotated', {});
   revalidatePath('/manage/orders');
   return { ok: true, message: '合言葉を作り直しました。スクリプトを貼り直してください' };
+}
+
+// ---------- 予定表 ----------
+function taskPaths() { revalidatePath('/manage/tasks'); revalidatePath('/me/punch'); revalidatePath('/me/calendar'); }
+export async function addTaskAction(input: Partial<TaskInput>): Promise<Result> {
+  const u = await requireManager();
+  const t = cleanTask(input);
+  if (typeof t === 'string') return { ok: false, error: t };
+  const e = await addTask(u.id, t);
+  if (e) return { ok: false, error: e };
+  taskPaths();
+  return { ok: true, message: '追加しました' };
+}
+export async function updateTaskAction(id: number, input: Partial<TaskInput>): Promise<Result> {
+  const u = await requireManager();
+  const t = cleanTask(input);
+  if (typeof t === 'string') return { ok: false, error: t };
+  const e = await updateTask(u.id, Number(id), t);
+  if (e) return { ok: false, error: e };
+  taskPaths();
+  return { ok: true, message: '保存しました' };
+}
+export async function deleteTaskAction(id: number): Promise<Result> {
+  const u = await requireManager();
+  if (!(await deleteTask(u.id, Number(id)))) return { ok: false, error: 'すでに消されています' };
+  taskPaths();
+  return { ok: true, message: '消しました' };
+}
+export async function moveTasksAction(ids: number[], to: string): Promise<Result> {
+  const u = await requireManager();
+  if (!isDay(to)) return { ok: false, error: '日付が正しくありません' };
+  const list = (Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
+  const n = await moveTasks(u.id, list, to);
+  taskPaths();
+  return { ok: true, message: `${n}件を${Number(to.slice(5, 7))}/${Number(to.slice(8, 10))}に回しました` };
+}
+export async function toggleTaskAction(id: number, done: boolean): Promise<Result> {
+  const u = await requireUser();
+  const e = await setTaskDone(u, Number(id), !!done);
+  if (e) return { ok: false, error: e };
+  taskPaths();
+  return { ok: true, message: done ? '済にしました' : '未に戻しました' };
 }

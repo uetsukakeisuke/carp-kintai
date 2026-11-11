@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { punchesBetween, publishedShifts, listCorrections } from '@/lib/data';
 import { summarizeDay, planCost, type PunchKind } from '@/lib/calc';
-import { jstParts, daysInMonth, ymd, weekday, WD, hm, hshort, dateLabel, hoursLabel } from '@/lib/time';
+import { jstParts, daysInMonth, ymd, weekday, WD, hm, hshort, dateLabel, hoursLabel, addDays } from '@/lib/time';
 import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { CorrectionForm } from './CorrectionForm';
+import { TaskList } from '@/components/TaskList';
+import { tasksForStaff, toItem } from '@/lib/tasks';
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ ym?: string; d?: string }> }) {
   const u = await requireUser();
@@ -13,7 +15,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ym = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : now.date.slice(0, 7);
   const [y, m] = ym.split('-').map(Number);
   const nd = daysInMonth(y, m), from = ymd(y, m, 1), to = ymd(y, m, nd);
-  const [punches, shifts, reqs] = await Promise.all([punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id })]);
+  const [punches, shifts, reqs, tasks] = await Promise.all([punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }), tasksForStaff(u.id, from, to)]);
   const sel = sp.d && sp.d.startsWith(ym) ? sp.d : now.date.startsWith(ym) ? now.date : from;
   const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
@@ -37,6 +39,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <Link key={k} className={cls} href={`/me/calendar?ym=${ym}&d=${k}`} scroll={false} aria-label={`${m}月${d}日${sh ? ' シフトあり' : ''}`}>
         <span className="cn">{d}</span>
         {sh && <span className="csh">{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
+        {tasks.some((t) => t.work_date === k) && <span className="ctk">予定{tasks.filter((t) => t.work_date === k).length}</span>}
         {badge}
       </Link>,
     );
@@ -75,7 +78,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <CorrectionForm date={sel} current={(['in', 'break_start', 'break_end', 'out'] as PunchKind[]).map((k) => ({ kind: k, minute: ps.find((p) => p.kind === k)?.minute ?? null }))}
             suggested={s.state === 'missing' ? 'out' : s.state === 'absent' ? 'in' : 'in'} planStart={sh?.start_min ?? null} planEnd={sh?.end_min ?? null} />
         )}
-        {!sh && s.firstIn === null && <div className="sub">この日は予定も出勤もありません。</div>}
+        {tasks.some((t) => t.work_date === sel) && (
+          <div className="cdtasks"><div className="sub" style={{ margin: '8px 0 2px' }}>予定表</div>
+            <TaskList items={tasks.filter((t) => t.work_date === sel).map(toItem)} canCheck={sel <= now.date && sel >= addDays(now.date, -1)} /></div>
+        )}
+        {!sh && s.firstIn === null && !tasks.some((t) => t.work_date === sel) && <div className="sub">この日は予定も出勤もありません。</div>}
       </div>
     </div>
   );
