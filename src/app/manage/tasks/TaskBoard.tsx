@@ -76,7 +76,7 @@ export function TaskBoard(p: { storeId: number; date: string; today: string; ite
       <section className="card tk-sec">
         <div className="tk-sh"><b>全体</b><span className="sub">その日に出勤する人みんなに見えます</span></div>
         {lines(list(null))}
-        <AddRow placeholder="例：FedEx集荷 15時／石山さん来社" onAdd={(v, done) => add(null, v, done)} busy={pending} />
+        <AddRow placeholder="例：FedEx集荷 15時／来客 14時" onAdd={(v, done) => add(null, v, done)} busy={pending} />
       </section>
 
       <div className="tk-people">
