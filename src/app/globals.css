@@ -1025,3 +1025,15 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 }
 
 .cc.has .ctk-t { background: var(--surface) }
+/* カレンダーのマス：入荷・出荷の件数 */
+.cc .clb { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; line-height: 1 }
+.cc .clb i, .clb-k { font-style: normal; font-size: 9.5px; font-weight: 700; border-radius: 4px; padding: 2px 3px; white-space: nowrap }
+.cc .clb .in, .clb-k.in { background: var(--accent-soft); color: var(--accent) }
+.cc .clb .out, .clb-k.out { background: var(--ok-soft); color: var(--ok) }
+.cc.has .clb .in { background: var(--surface) }
+.cc .clb.late .in, .cc .clb.late .out { box-shadow: inset 0 0 0 1px var(--warn) }
+.cc .clb .w { display: none }
+.cal-legend { margin: 6px 0 0; font-size: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px }
+.cal-legend .clb-k { margin-left: 2px }
+@media (min-width: 761px) { .cc .clb i { font-size: 11px; padding: 2px 5px } .cc .clb .w { display: inline } }
+

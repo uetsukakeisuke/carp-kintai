@@ -8,6 +8,7 @@ export type BriefItem = {
   part: string;
   party: string;   // 入荷は仕入先、出荷は客先（短い名前）
   qty: number;
+  qtyText: string; // 個数が数字で読めないとき（「1式」など）の元の文字
   kg: number;
   due: string;     // 入荷は仕入納期、出荷は客先納入日
   late: boolean;   // 予定の日を過ぎている（今日に寄せたもの）
@@ -23,7 +24,7 @@ export function briefOf(items: LoadItem[]): DayBrief {
     const key = `${i.kind}|${party}|${i.part}|${i.due}`;
     const g = groups.get(key);
     if (g) { g.qty += i.qty; g.kg += i.kg; g.lines++; g.late ||= i.late; }
-    else groups.set(key, { kind: i.kind, part: i.part, party, qty: i.qty, kg: i.kg, due: i.due, late: i.late, lines: 1 });
+    else groups.set(key, { kind: i.kind, part: i.part, party, qty: i.qty, qtyText: i.qty > 0 ? '' : i.qtyText, kg: i.kg, due: i.due, late: i.late, lines: 1 });
   }
   const all = [...groups.values()].sort((a, b) => Number(b.late) - Number(a.late) || a.due.localeCompare(b.due) || a.party.localeCompare(b.party, 'ja') || a.part.localeCompare(b.part, 'ja'));
   const ins = all.filter((x) => x.kind === 'in'), outs = all.filter((x) => x.kind === 'out');

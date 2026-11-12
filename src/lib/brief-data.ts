@@ -25,7 +25,7 @@ export async function ledgerBrief(): Promise<{ at: Date; byDate: Map<string, Day
     if (memo?.key === key) return memo;
     const [snap] = await sql<{ orders: Cell[][] }[]>`select orders from ledger_snapshots where id = ${head.id}`;
     if (!snap) return null;
-    const loads = dayLoads(buildReport(snap.orders, [], today).rows, today, params.shipLead);
+    const loads = dayLoads(buildReport(snap.orders, [], today).rows, today, params.shipLead, { keepEmpty: true });
     const byDate = new Map<string, DayBrief>();
     for (const [d, l] of loads) if (d >= today) byDate.set(d, briefOf(l.items));
     memo = { key, at: new Date(head.received_at), byDate };

@@ -53,6 +53,18 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <Link key={k} className={cls} href={`/me/calendar?ym=${ym}&d=${k}`} scroll={false} aria-label={`${m}月${d}日${sh ? ' シフトあり' : ''}`}>
         <span className="cn">{d}</span>
         {sh && <span className="csh">{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
+        {(() => {
+          // 受発注の入荷・出荷（今日以降。全員に出す）
+          const lb = k >= now.date ? ledger?.byDate.get(k) : undefined;
+          if (!lb || (!lb.ins.length && !lb.outs.length)) return null;
+          const late = [...lb.ins, ...lb.outs].some((x) => x.late);
+          return (
+            <span className={`clb${late ? ' late' : ''}`} title={`入荷${lb.ins.length}件・出荷${lb.outs.length}件${late ? '（遅れあり）' : ''}`}>
+              {lb.ins.length > 0 && <i className="in">入<span className="w">荷</span>{lb.ins.length}</i>}
+              {lb.outs.length > 0 && <i className="out">出<span className="w">荷</span>{lb.outs.length}</i>}
+            </span>
+          );
+        })()}
         {(() => { const dt = dayTasks(k); return dt.length > 0 && <span className="ctk" title={dt.map((t) => t.title).join('\n')}><span className="ctk-n">予定{dt.length}</span><span className="ctk-t">{dt[0].title}</span>{dt.length > 1 && <span className="ctk-more">ほか{dt.length - 1}件</span>}</span>; })()}
         {badge}
       </Link>,
@@ -82,6 +94,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         {WD.map((x, i) => <div key={x} className={`cw${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{x}</div>)}
         {cells}
       </div>
+      {ledger && <p className="sub cal-legend"><i className="clb-k in">入</i>入荷・<i className="clb-k out">出</i>出荷の件数（受発注台帳 {new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(ledger.at)}時点）。日を押すと品名が出ます。</p>}
       <div className="caldet">
         <div className="row"><b>{dateLabel(sel)}</b>{s.state !== 'none' && <span className={`stt s-${s.state}`}>{STATE_LABEL[s.state]}</span>}
           {s.segments.length > 1 && <span className="flag f-re">{s.segments.length}回に分けて勤務</span>}</div>

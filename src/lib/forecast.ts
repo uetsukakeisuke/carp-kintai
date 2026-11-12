@@ -36,7 +36,7 @@ export const weekdayOf = (d: string) => new Date(ms(d)).getUTCDay();
 
 // ---------- 作業量 ----------
 export type Load = { inLines: number; inSqrt: number; inKg: number; outLines: number; outSqrt: number; outKg: number };
-export type LoadItem = { kind: 'in' | 'out'; part: string; customer: string; supplier: string; due: string; qty: number; kg: number; line: number; late: boolean };
+export type LoadItem = { kind: 'in' | 'out'; part: string; customer: string; supplier: string; due: string; qty: number; qtyText: string; kg: number; line: number; late: boolean };
 export type DayLoad = Load & { date: string; items: LoadItem[] };
 const emptyLoad = (date: string): DayLoad => ({ date, inLines: 0, inSqrt: 0, inKg: 0, outLines: 0, outSqrt: 0, outKg: 0, items: [] });
 export function addTo(l: Load, kind: 'in' | 'out', qty: number, kg: number) {
@@ -47,21 +47,24 @@ export function addTo(l: Load, kind: 'in' | 'out', qty: number, kg: number) {
  * これからの作業を日ごとに並べる。まだ入荷していない行は仕入納期の日に「入荷」、まだ納品していない行は
  * 客先納入日の shipLead 日前に「出荷」。すでに日が過ぎているものは今日に寄せる（遅れて届く・急いで出す）
  */
-export function dayLoads(rows: OrderRow[], today: string, shipLead: number): Map<string, DayLoad> {
+export function dayLoads(rows: OrderRow[], today: string, shipLead: number, opts: { keepEmpty?: boolean } = {}): Map<string, DayLoad> {
   const m = new Map<string, DayLoad>();
-  const put = (date: string, it: LoadItem) => {
+  const put = (date: string, it: LoadItem, empty: boolean) => {
     const d = m.get(date) ?? emptyLoad(date);
-    addTo(d, it.kind, it.qty, it.kg); d.items.push(it); m.set(date, d);
+    if (!empty) addTo(d, it.kind, it.qty, it.kg);
+    d.items.push(it); m.set(date, d);
   };
   for (const r of rows) {
-    if (r.qtyN <= 0 && r.kg <= 0) continue;
+    // 個数も重さも読めない行は作業量の予測に使わない（keepEmpty のときは一覧にだけ出す）
+    const empty = r.qtyN <= 0 && r.kg <= 0;
+    if (empty && !opts.keepEmpty) continue;
     if (!r.fromStock && !r.received && r.supDue) {
       const late = r.supDue < today;
-      put(late ? today : r.supDue, { kind: 'in', part: r.part, customer: r.customer, supplier: r.supplier, due: r.supDue, qty: r.qtyN, kg: r.kg, line: r.line, late });
+      put(late ? today : r.supDue, { kind: 'in', part: r.part, customer: r.customer, supplier: r.supplier, due: r.supDue, qty: r.qtyN, qtyText: r.qty, kg: r.kg, line: r.line, late }, empty);
     }
     if (!r.toStock && !r.delivered && r.custDue) {
       const d = shift(r.custDue, -shipLead), late = d < today;
-      put(late ? today : d, { kind: 'out', part: r.part, customer: r.customer, supplier: r.supplier, due: r.custDue, qty: r.qtyN, kg: r.kg, line: r.line, late });
+      put(late ? today : d, { kind: 'out', part: r.part, customer: r.customer, supplier: r.supplier, due: r.custDue, qty: r.qtyN, qtyText: r.qty, kg: r.kg, line: r.line, late }, empty);
     }
   }
   return m;

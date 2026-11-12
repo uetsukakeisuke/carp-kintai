@@ -12,7 +12,7 @@ function Row({ x, date }: { x: BriefItem; date: string }) {
   return (
     <li>
       <span className="lb-part">{x.part}</span>
-      <span className="lb-qty num">{x.qty > 0 ? `${x.qty.toLocaleString('ja-JP')}個` : ''}{x.kg > 0 ? `${x.qty > 0 ? '・' : ''}${kgText(x.kg)}kg` : ''}</span>
+      <span className="lb-qty num">{x.qty > 0 ? `${x.qty.toLocaleString('ja-JP')}個` : x.qtyText}{x.kg > 0 ? `${x.qty > 0 || x.qtyText ? '・' : ''}${kgText(x.kg)}kg` : ''}</span>
       <span className="sub lb-meta">{x.kind === 'in' ? `${x.party}から` : `${x.party}へ`}{when && <>・{when}</>}</span>
     </li>
   );
