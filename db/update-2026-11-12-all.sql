@@ -121,5 +121,21 @@ create table if not exists api_keys (
   revoked_at   timestamptz
 );
 alter table api_keys enable row level security;
-insert into schema_migrations (name) values ('003_payslips.sql'),('004_slip_pin_visible.sql'),('005_faces.sql'),('006_ledger.sql'),('007_tasks.sql'),('008_calendar.sql'),('009_forecast.sql'),('010_api_keys.sql') on conflict do nothing;
-select (select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('payslips','ledger_snapshots','day_tasks','ledger_events','ledger_days','auto_drafts','api_keys')) as "表（7なら完了）", (select count(*) from information_schema.columns where table_schema = 'public' and ((table_name = 'settings' and column_name in ('ledger_secret','ledger_sheet_id','forecast')) or (table_name = 'staff' and column_name in ('cal_token','slip_pin')) or (table_name = 'punches' and column_name = 'face'))) as "列（6なら完了）";
+insert into schema_migrations (name) values
+  ('003_payslips.sql'), ('004_slip_pin_visible.sql'), ('005_faces.sql'),
+  ('006_ledger.sql'), ('007_tasks.sql'), ('008_calendar.sql'),
+  ('009_forecast.sql'), ('010_api_keys.sql')
+on conflict do nothing;
+select
+  (select count(*) from information_schema.tables
+    where table_schema = 'public'
+      and table_name in ('payslips', 'ledger_snapshots', 'day_tasks',
+        'ledger_events', 'ledger_days', 'auto_drafts', 'api_keys')
+  ) as "表（7なら完了）",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and (
+      (table_name = 'settings'
+        and column_name in ('ledger_secret', 'ledger_sheet_id', 'forecast'))
+      or (table_name = 'staff' and column_name in ('cal_token', 'slip_pin'))
+      or (table_name = 'punches' and column_name = 'face'))
+  ) as "列（6なら完了）";
