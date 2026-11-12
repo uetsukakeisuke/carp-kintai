@@ -12,6 +12,7 @@ const yen = (n: number) => '¥' + Math.round(n).toLocaleString('ja-JP');
 const dt = (d: Date) => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
 
 export default async function PayslipAdminPage({ searchParams }: { searchParams: Promise<{ ym?: string; id?: string }> }) {
+  const me = await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
   const sp = await searchParams;
   if (sp.id) {
     const slip = await payslipById(Number(sp.id));
@@ -23,11 +24,15 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
       </div>
     );
   }
-  const me = await requireManager();
-  const [months, imports, staff, secret, pins] = await Promise.all([payslipMonths(), recentImports(), listStaff(), getImportSecret(true), me.role === 'admin' ? slipPins() : Promise.resolve([])]);
-  const sel = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : months[0] ? `${months[0].work_year}-${String(months[0].work_month).padStart(2, '0')}` : null;
+  // 月が決まっていれば、明細の一覧も同時に聞く
+  const asked = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : null;
+  const [months, imports, staff, secret, pins, askedSlips] = await Promise.all([
+    payslipMonths(), recentImports(), listStaff(), getImportSecret(true), me.role === 'admin' ? slipPins() : Promise.resolve([]),
+    asked ? payslipsForMonth(Number(asked.slice(0, 4)), Number(asked.slice(5, 7))) : Promise.resolve(null),
+  ]);
+  const sel = asked ?? (months[0] ? `${months[0].work_year}-${String(months[0].work_month).padStart(2, '0')}` : null);
   const [y, m] = sel ? sel.split('-').map(Number) : [0, 0];
-  const slips = sel ? await payslipsForMonth(y, m) : [];
+  const slips = askedSlips ?? (sel ? await payslipsForMonth(y, m) : []);
   const h = await headers();
   const appUrl = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('host')}`;
   const lastGmail = imports.find((i) => i.source === 'gmail');

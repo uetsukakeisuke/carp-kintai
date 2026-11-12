@@ -129,10 +129,12 @@ export async function slipPinState(staffId: number) {
   const [s] = await sql<{ slip_pin_hash: string | null; slip_locked_until: Date | null }[]>`select slip_pin_hash, slip_locked_until from staff where id = ${staffId}`;
   return { hasPin: !!s?.slip_pin_hash, lockedUntil: s?.slip_locked_until && s.slip_locked_until > new Date() ? s.slip_locked_until : null };
 }
+/** 明細を開く鍵を渡す。期限切れの鍵の掃除・失敗回数の消去・鍵の登録を1回の問い合わせで行う（待ち時間を短く） */
 async function grant(staffId: number) {
   const token = randomBytes(32).toString('base64url');
-  await sql`delete from slip_unlocks where expires_at < now()`;
-  await sql`insert into slip_unlocks (token_hash, staff_id, expires_at) values (${hash(token)}, ${staffId}, ${new Date(Date.now() + UNLOCK_MIN * 60000)})`;
+  await sql`with cleared as (delete from slip_unlocks where expires_at < now()),
+      reset as (update staff set slip_failed = 0, slip_locked_until = null where id = ${staffId})
+    insert into slip_unlocks (token_hash, staff_id, expires_at) values (${hash(token)}, ${staffId}, ${new Date(Date.now() + UNLOCK_MIN * 60000)})`;
   (await cookies()).set(SLIP_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: UNLOCK_MIN * 60 });
 }
 export async function slipUnlocked(staffId: number) {
@@ -153,7 +155,7 @@ export async function setSlipPin(staffId: number, pin: string): Promise<{ ok: tr
   if (weak(pin)) return { ok: false, error: '1111 や 1234 のような分かりやすい数字は使えません' };
   const st = await slipPinState(staffId);
   if (st.hasPin) return { ok: false, error: 'すでに暗証番号が決まっています' };
-  await sql`update staff set slip_pin_hash = ${await bcrypt.hash(pin, 10)}, slip_pin = ${pin}, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
+  await sql`update staff set slip_pin_hash = ${await bcrypt.hash(pin, 10)}, slip_pin = ${pin} where id = ${staffId}`;
   await audit(staffId, 'slip_pin_set', {});
   await grant(staffId);
   return { ok: true };
@@ -163,7 +165,6 @@ export async function unlockSlips(staffId: number, pin: string): Promise<{ ok: t
   if (!s?.slip_pin_hash) return { ok: false, error: '暗証番号がまだ決まっていません' };
   if (s.slip_locked_until && s.slip_locked_until > new Date()) return { ok: false, error: `${MAX_FAILS}回間違えたため、しばらく開けません。急ぐ場合は管理者に聞いてください。` };
   if (/^\d{4}$/.test(pin) && (await bcrypt.compare(pin, s.slip_pin_hash))) {
-    await sql`update staff set slip_failed = 0, slip_locked_until = null where id = ${staffId}`;
     await grant(staffId);
     return { ok: true };
   }

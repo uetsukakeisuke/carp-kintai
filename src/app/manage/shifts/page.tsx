@@ -1,9 +1,11 @@
+import { requireManager } from '@/lib/auth';
 import Link from 'next/link';
 import { listStores, monthBundle } from '@/lib/data';
 import { jstParts } from '@/lib/time';
 import { ShiftBoard } from './ShiftBoard';
 
 export default async function ShiftsPage({ searchParams }: { searchParams: Promise<{ ym?: string; store?: string }> }) {
+  await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
   const sp = await searchParams;
   const stores = await listStores();
   if (!stores.length) return <div className="empty"><b>店舗が登録されていません</b><Link href="/manage/settings">店舗・端末</Link>で店舗を登録してください。</div>;

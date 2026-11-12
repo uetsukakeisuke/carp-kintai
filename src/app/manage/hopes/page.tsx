@@ -1,9 +1,11 @@
+import { requireManager } from '@/lib/auth';
 import Link from 'next/link';
 import { listStores, monthBundle } from '@/lib/data';
 import { jstParts } from '@/lib/time';
 import { HopeBoard } from './HopeBoard';
 
 export default async function HopeStatusPage({ searchParams }: { searchParams: Promise<{ ym?: string; store?: string }> }) {
+  await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
   const sp = await searchParams;
   const stores = await listStores();
   const store = stores.find((s) => s.id === Number(sp.store)) ?? stores[0];

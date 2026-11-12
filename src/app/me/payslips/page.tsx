@@ -10,11 +10,11 @@ const yen = (n: number) => '¥' + Math.round(n).toLocaleString('ja-JP');
 export default async function MyPayslipsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const u = await requireUser();
   const sp = await searchParams;
-  const st = await slipPinState(u.id);
-  if (!st.hasPin || !(await slipUnlocked(u.id))) {
+  // 3つを同時に聞く（明細は、開いていないときは表示しない）
+  const [st, unlocked, slips] = await Promise.all([slipPinState(u.id), slipUnlocked(u.id), payslipsOf(u.id)]);
+  if (!st.hasPin || !unlocked) {
     return <div className="narrow"><h1 style={{ fontSize: 20, margin: '4px 0 12px' }}>給与明細</h1><SlipGate hasPin={st.hasPin} locked={!!st.lockedUntil} /></div>;
   }
-  const slips = await payslipsOf(u.id);
   const cur = slips.find((s) => s.id === Number(sp.id)) ?? slips[0];
   return (
     <div className="narrow">

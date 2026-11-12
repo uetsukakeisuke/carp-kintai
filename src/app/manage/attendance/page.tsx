@@ -1,3 +1,4 @@
+import { requireManager } from '@/lib/auth';
 import Link from 'next/link';
 import { listStores, listStaff, punchesBetween, publishedShifts, listCorrections, ratesFor, whoIsWorking } from '@/lib/data';
 import { NowWorking } from '@/components/NowWorking';
@@ -9,6 +10,7 @@ import { decideCorrectionAction } from '@/app/actions';
 import { EditPunchesButton, AddAttendance } from './PunchEditor';
 
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ d?: string; store?: string }> }) {
+  await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
   const sp = await searchParams;
   const now = jstParts();
   const stores = await listStores();
