@@ -22,7 +22,6 @@ export default async function HopeStatusPage({ searchParams }: { searchParams: P
     <>
       <div className="ph">
         {stores.length > 1 && <div className="chips">{stores.map((s) => <Link key={s.id} className={`btn${s.id === store.id ? ' primary' : ''}`} href={`/manage/hopes?store=${s.id}&ym=${ym}`}>{s.name}</Link>)}</div>}
-        <h1>{m}月分のシフト希望</h1>
         <span className="grow" />
         <div className="monthnav">
           <Link className="btn" href={`/manage/hopes?store=${store.id}&ym=${prev}`} aria-label="前の月">‹</Link>

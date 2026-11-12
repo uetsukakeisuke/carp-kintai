@@ -58,7 +58,6 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   if (!snap || !r) {
     return (
       <div className="narrow">
-        <div className="ph"><h1>受発注の報告</h1></div>
         <div className="empty" style={{ marginBottom: 14 }}><b>まだ台帳が届いていません</b>下の手順で台帳とつなぐと、毎朝の報告がここに出ます。</div>
         <section className="card">{setup}</section>
       </div>
@@ -77,7 +76,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <div className="ph"><h1>受発注の報告</h1><span className="sub">{md(today)}（{'日月火水木金土'[new Date(today + 'T00:00:00Z').getUTCDay()]}）京都工房</span></div>
+      <div className="ph"><span className="sub">{md(today)}（{'日月火水木金土'[new Date(today + 'T00:00:00Z').getUTCDay()]}）京都工房</span></div>
       <p className="sub" style={{ margin: '-8px 0 12px' }}>
         台帳の取り込み：{dt(new Date(snap.received_at))}（注文 {r.read}行）
         {ageH > STALE_H && <span className="warn-t">　最後に届いてから{Math.floor(ageH)}時間たっています。スクリプトが止まっていないか確認してください</span>}

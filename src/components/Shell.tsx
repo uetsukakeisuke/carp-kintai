@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { logoutAction } from '@/app/actions';
-import { NavLinks } from './NavLinks';
+import { NavLinks, SubNav, type NavGroup } from './NavLinks';
 
-type NavItem = { href: string; label: string; short?: string; icon?: string; bottom?: boolean; tab?: boolean; also?: string[]; admin?: boolean };
+type NavItem = NavGroup & { short?: string; icon?: string; bottom?: boolean; tab?: boolean; also?: string[]; admin?: boolean };
 export const STAFF_NAV: NavItem[] = [
   { href: '/me/punch', label: '打刻', icon: '◷' },
   { href: '/me/calendar', label: 'カレンダー', icon: '▦' },
@@ -11,27 +12,39 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/me/payslips', label: '給与明細', short: '明細', icon: '¥' },
   { href: '/me/settings', label: '設定', icon: '⚙' },
 ];
-// PC：上のタブ ／ スマホ：下のバー（よく使う4つ＋その他）。給与報告（月1回）はスマホでは「その他」から
+// 管理：使う場面ごとにまとめる。PC は上のタブ、スマホは下のバー（よく使う4つ＋その他）。
+// まとまりの中の画面は、ページの上の見出し（SubNav）で切り替える
 export const MANAGE_NAV: NavItem[] = [
-  { href: '/manage/shifts', label: 'シフト作成', short: 'シフト', icon: '▦' },
-  { href: '/manage/tasks', label: '予定表', short: '予定', icon: '✓' },
-  { href: '/manage/hopes', label: '希望の提出状況', bottom: false },
-  { href: '/manage/attendance', label: '勤怠実績', short: '勤怠', icon: '◷' },
-  { href: '/manage/report', label: '給与報告', short: '給与報告', icon: '⇩', bottom: false },
-  { href: '/manage/staff', label: 'スタッフ・時給', short: 'スタッフ', icon: '☺' },
-  { href: '/manage/payslips', label: '給与明細', bottom: false },
-  { href: '/manage/settings', label: '店舗・端末', bottom: false },
-  { href: '/manage/orders', label: '受発注の報告', bottom: false, admin: true },
-  { href: '/manage/expenses', label: '経費精算', bottom: false, admin: true },
-  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders', '/manage/report', '/manage/forecast', '/manage/api', '/manage/expenses'] },
+  { href: '/manage/shifts', label: 'シフト', icon: '▦', pages: [
+    { href: '/manage/shifts', label: 'シフト作成' },
+    { href: '/manage/hopes', label: '希望の提出状況' },
+    { href: '/manage/forecast', label: '作業量の予測' },
+  ] },
+  { href: '/manage/tasks', label: '予定表', short: '予定', icon: '✓', pages: [{ href: '/manage/tasks', label: '予定表' }] },
+  { href: '/manage/attendance', label: '勤怠実績', short: '勤怠', icon: '◷', pages: [{ href: '/manage/attendance', label: '勤怠実績' }] },
+  { href: '/manage/staff', label: 'スタッフ・時給', short: 'スタッフ', icon: '☺', pages: [{ href: '/manage/staff', label: 'スタッフ・時給' }] },
+  { href: '/manage/report', label: '給与・経費', bottom: false, pages: [
+    { href: '/manage/report', label: '給与報告フォーム' },
+    { href: '/manage/expenses', label: '経費・旅費精算', admin: true },
+    { href: '/manage/payslips', label: '給与明細' },
+  ] },
+  { href: '/manage/orders', label: '京都工房', bottom: false, admin: true, pages: [{ href: '/manage/orders', label: '受発注の報告' }] },
+  { href: '/manage/settings', label: '設定', bottom: false, pages: [
+    { href: '/manage/settings', label: '店舗・端末' },
+    { href: '/manage/api', label: '外部連携（APIキー）', admin: true },
+  ] },
+  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/report', '/manage/expenses', '/manage/payslips', '/manage/orders', '/manage/settings', '/manage/api'] },
 ];
 
 export function Shell({ user, manager, area, badges, children }: {
   user: { name: string; role?: string }; manager: boolean; area: 'me' | 'manage'; badges?: Record<string, number>; children: React.ReactNode;
 }) {
-  const nav = (area === 'me' ? STAFF_NAV : MANAGE_NAV).filter((n) => !n.admin || user.role === 'admin');
+  const admin = user.role === 'admin';
+  const nav = (area === 'me' ? STAFF_NAV : MANAGE_NAV)
+    .filter((n) => !n.admin || admin)
+    .map((n) => ({ ...n, pages: n.pages?.filter((p) => !p.admin || admin), also: n.also ?? n.pages?.map((p) => p.href) }));
   return (
-    <>
+    <div className={`area-${area}`}>
       <header className="top"><div className="top-in">
         <Link className="brand" href="/">カープ勤怠</Link>
         {manager && (
@@ -53,9 +66,10 @@ export function Shell({ user, manager, area, badges, children }: {
       </div></header>
       <div className="wrap">
         <NavLinks items={nav.filter((n) => n.tab !== false)} className="tabs bnav-tabs" badges={badges} />
+        {area === 'manage' && <Suspense fallback={null}><SubNav groups={nav.filter((n) => n.pages?.length)} badges={badges} /></Suspense>}
         {children}
       </div>
       <NavLinks items={nav.filter((n) => n.bottom !== false)} className="botnav" bottom badges={badges} />
-    </>
+    </div>
   );
 }

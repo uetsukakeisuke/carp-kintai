@@ -35,14 +35,16 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <div className="ph"><h1>給与明細</h1></div>
-
-
-      <div className="chips" style={{ marginBottom: 12 }}>
-        {months.map((x) => { const k = `${x.work_year}-${String(x.work_month).padStart(2, '0')}`; return <Link key={k} className={`btn${k === sel ? ' primary' : ''}`} href={`/manage/payslips?ym=${k}`}>{x.work_month}月分</Link>; })}
+      <div className="ph">
+        <span className="sub">{lastGmail ? <>Gmail から自動で取り込み中（最後に届いたのは {dt(lastGmail.created_at)}）</> : <>Gmail との連携がまだです。いちばん下の「Gmail から自動で取り込む」を設定してください</>}</span>
       </div>
+      {months.length > 0 && (
+        <div className="chips" style={{ marginBottom: 12 }}>
+          {months.map((x) => { const k = `${x.work_year}-${String(x.work_month).padStart(2, '0')}`; return <Link key={k} className={`btn${k === sel ? ' primary' : ''}`} href={`/manage/payslips?ym=${k}`}>{x.work_month}月分</Link>; })}
+        </div>
+      )}
       {sel ? (
-        <div className="grid-wrap" style={{ marginBottom: 16 }}><table className="tbl stack dense">
+        <div className="grid-wrap" style={{ marginBottom: 12 }}><table className="tbl stack dense">
           <thead><tr><th>スタッフ</th><th>総支給</th><th>控除</th><th>差引支給額</th><th /></tr></thead>
           <tbody>
             {slips.map((s) => (
@@ -56,34 +58,51 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
             ))}
           </tbody>
         </table></div>
-      ) : <div className="empty" style={{ marginBottom: 16 }}><b>まだ明細がありません</b>下の手順で Gmail と連携するか、PDFを取り込んでください。</div>}
-      {sel && missing.length > 0 && <p className="sub" style={{ marginTop: -6 }}>この月の明細がない人：{missing.map((s) => s.name).join('、')}（その月に勤務がなかった場合など）</p>}
+      ) : <div className="empty" style={{ marginBottom: 16 }}><b>まだ明細がありません</b>下の「Gmail から自動で取り込む」を設定するか、PDFを取り込んでください。</div>}
+      {sel && missing.length > 0 && <p className="sub" style={{ margin: '0 0 12px' }}>この月の明細がない人：{missing.map((s) => s.name).join('、')}（その月に勤務がなかった場合など）</p>}
+
+      <div className="cols2">
+        <section className="card">
+          <b>PDFを手で取り込む</b>
+          <p className="sub" style={{ margin: '4px 0 10px' }}>メールの「給与支給明細書」PDFを保存して選びます。同じ月をもう一度取り込むと上書きされます。</p>
+          <UploadForm />
+        </section>
+        {imports.length > 0 && (
+          <section className="card">
+            <b>取り込みの記録</b>
+            <div className="grid-wrap" style={{ marginTop: 8 }}><table className="tbl dense">
+              <tbody>{imports.map((i) => (
+                <tr key={i.id}>
+                  <td className="num" style={{ whiteSpace: 'nowrap' }}>{dt(i.created_at)}</td>
+                  <td>{i.source === 'gmail' ? 'Gmail' : '手動'}</td>
+                  <td>{i.error ? <span className="bad-t">{i.error}</span> : `${i.slips - i.unmatched}人分`}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          </section>
+        )}
+      </div>
 
       {me.role === 'admin' && (
-        <section className="card" style={{ marginBottom: 14 }}>
-          <details className="pinlist">
-            <summary><b>全員の明細の暗証番号</b><span className="sub">（管理者だけに表示・押すと開きます）</span></summary>
-            <div className="pins">
-              {pins.map((x) => (
-                <div key={x.id} className="pinrow">
-                  <span>{x.name}</span>
-                  {x.slip_pin ? <b className="num">{x.slip_pin}</b> : x.has_pin ? <span className="sub">不明（消して決め直してもらう）</span> : <span className="sub">未設定</span>}
-                  {x.locked && <span className="flag f-late">ロック中</span>}
-                </div>
-              ))}
-            </div>
-            <p className="sub" style={{ margin: '8px 0 0' }}>本人が初めて「明細」を開いたときに決めた番号です。消すときは「スタッフ・時給 → 編集 → 明細の暗証番号を消す」。</p>
-          </details>
-        </section>
+        <details className="card ex-setup pinlist" style={{ marginTop: 12 }}>
+          <summary><b>全員の明細の暗証番号</b><span className="sub">（管理者だけに表示）</span></summary>
+          <div className="pins">
+            {pins.map((x) => (
+              <div key={x.id} className="pinrow">
+                <span>{x.name}</span>
+                {x.slip_pin ? <b className="num">{x.slip_pin}</b> : x.has_pin ? <span className="sub">不明（消して決め直してもらう）</span> : <span className="sub">未設定</span>}
+                {x.locked && <span className="flag f-late">ロック中</span>}
+              </div>
+            ))}
+          </div>
+          <p className="sub" style={{ margin: '8px 0 0' }}>本人が初めて「明細」を開いたときに決めた番号です。消すときは「スタッフ・時給 → 編集 → 明細の暗証番号を消す」。</p>
+        </details>
       )}
 
-      <section className="card" style={{ marginBottom: 14 }}>
-        <b>Gmail から自動で取り込む</b>
-        <p className="sub" style={{ margin: '4px 0 10px' }}>
-          {lastGmail ? `連携済み：最後に届いたのは ${dt(lastGmail.created_at)}` : 'まだ連携していません。最初に1回だけ、次の設定をしてください（5分ほど）。'}
-        </p>
-        <ol className="steps">
-          <li>info@carpagency.net の Google アカウントで <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">script.google.com（新しいプロジェクト）</a> を開く</li>
+      <details className="card ex-setup" style={{ marginTop: 12 }} open={!lastGmail}>
+        <summary><b>Gmail から自動で取り込む</b>{lastGmail ? <span className="ok-t">（連携済み）</span> : <span className="sub">（はじめに1回だけ・5分ほど）</span>}</summary>
+        <ol className="steps" style={{ marginTop: 8 }}>
+          <li>明細メールが届く会社の Google アカウントで <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">script.google.com（新しいプロジェクト）</a> を開く</li>
           <li>最初から入っている文字をすべて消し、下のスクリプトを「コピー」して貼り付け、保存（💾）</li>
           <li>上の関数の選択欄で <b>setup</b> を選んで「実行」→ Google の許可画面で「許可」</li>
           <li>以後、1時間ごとにアクトヴィジョンの「給与明細」メールを確認し、明細PDFを自動で取り込みます</li>
@@ -91,28 +110,7 @@ export default async function PayslipAdminPage({ searchParams }: { searchParams:
         <div style={{ marginTop: 10 }}><ScriptBox code={gasScript(appUrl, secret ?? '')} /></div>
         <p className="sub" style={{ margin: '8px 0 0' }}>スクリプトの中の合言葉（SECRET）は、このアプリに明細を送るための鍵です。他の人に見せないでください。漏れたときは作り直してください。</p>
         <div style={{ marginTop: 8 }}><RotateSecret /></div>
-      </section>
-
-      <section className="card" style={{ marginBottom: 14 }}>
-        <b>PDFを手で取り込む</b>
-        <p className="sub" style={{ margin: '4px 0 10px' }}>メールの「給与支給明細書」PDFを保存して選びます。同じ月をもう一度取り込むと上書きされます。</p>
-        <UploadForm />
-      </section>
-
-      {imports.length > 0 && (
-        <section className="card">
-          <b>取り込みの記録</b>
-          <div className="grid-wrap" style={{ marginTop: 8 }}><table className="tbl">
-            <tbody>{imports.map((i) => (
-              <tr key={i.id}>
-                <td className="num" style={{ whiteSpace: 'nowrap' }}>{dt(i.created_at)}</td>
-                <td>{i.source === 'gmail' ? 'Gmail' : '手動'}</td>
-                <td>{i.error ? <span className="bad-t">{i.error}</span> : `${i.slips - i.unmatched}人分`}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>
-        </section>
-      )}
+      </details>
     </>
   );
 }

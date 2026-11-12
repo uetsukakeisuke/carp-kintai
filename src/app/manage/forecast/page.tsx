@@ -23,7 +23,7 @@ export default async function ForecastPage() {
 
   return (
     <>
-      <div className="ph"><h1>作業量の予測</h1><span className="sub">{store.name}・シフトの下書きの自動作成に使います</span></div>
+      <div className="ph"><span className="sub">{store.name}・シフトの下書きの自動作成に使います</span></div>
       {!f.ready && <div className="banner warn" style={{ marginBottom: 12 }}>データベースの準備（SQL）がまだです。上塚さんに SQL Editor での実行をお願いしてください。それまでは仮の目安で表示しています。</div>}
 
       <section className="fc-sum">

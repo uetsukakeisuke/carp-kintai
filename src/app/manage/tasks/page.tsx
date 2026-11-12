@@ -34,7 +34,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <div className="ph">
-        <h1>予定表</h1>
         {stores.length > 1 && <div className="chips">{stores.map((s) => <Link key={s.id} className={`btn${s.id === store.id ? ' primary' : ''}`} href={`/manage/tasks?store=${s.id}&d=${date}`}>{s.name}</Link>)}</div>}
         <span className="grow" />
         <div className="monthnav">

@@ -14,7 +14,6 @@ export default async function ApiPage() {
   const base = `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('host')}/api/v1`;
   return (
     <div className="narrow">
-      <div className="ph"><h1>外部連携（APIキー）</h1></div>
       <p className="sub" style={{ margin: '-6px 0 12px' }}>公式LINEなど、ほかのシステムがアプリのデータを読むためのキーです。読めるのは公開済みのシフト・予定表・スタッフの名前だけで、時給・暗証番号・給与明細・下書きのシフトは読めません。書き換えもできません。</p>
       {!ready && <div className="banner warn" style={{ marginBottom: 12 }}>データベースの準備（SQL）がまだです。SQL Editor で実行してから使ってください。</div>}
 

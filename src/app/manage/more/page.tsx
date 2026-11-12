@@ -14,10 +14,10 @@ const GROUPS: { name: string; items: Item[] }[] = [
     { href: '/manage/hopes', icon: '✎', title: '希望の提出状況', desc: '誰が出したか・受付期間の設定', hint: 'hopes' },
     { href: '/manage/forecast', icon: '↗', title: '作業量の予測', desc: '日ごとの作業時間・自動下書きの目安' },
   ] },
-  { name: 'お金', items: [
-    { href: '/manage/report', icon: '⇩', title: '給与報告', desc: 'アクトヴィジョンに送る月の報告（xlsx）' },
+  { name: '給与・経費', items: [
+    { href: '/manage/report', icon: '⇩', title: '給与報告フォーム', desc: '税理士事務所に送る毎月のExcel（ドライブにも保存）' },
+    { href: '/manage/expenses', icon: '✈\ufe0e', title: '経費・旅費精算', desc: '立て替えた経費と出張の精算', admin: true },
     { href: '/manage/payslips', icon: '¥', title: '給与明細', desc: 'Gmailからの取り込み・全員の明細' },
-    { href: '/manage/expenses', icon: '✈︎', title: '経費精算・旅費精算', desc: '立て替えた経費と出張の精算・給与報告フォームをドライブへ', admin: true },
   ] },
   { name: '京都工房', items: [
     { href: '/manage/orders', icon: '▤', title: '受発注の報告', desc: '納期の遅れ・未入荷・未請求', admin: true, hint: 'orders' },
@@ -66,6 +66,7 @@ export default async function MorePage() {
   const h = await hints(admin);
   return (
     <div className="narrow more">
+      <h1 className="more-h">その他</h1>
       {GROUPS.map((g) => {
         const items = g.items.filter((it) => !it.admin || admin);
         if (!items.length) return null;

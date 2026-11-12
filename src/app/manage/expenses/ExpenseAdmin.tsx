@@ -6,7 +6,7 @@ import {
 } from '@/app/actions';
 import { ActionButton } from '@/components/ActionButton';
 import { useToast } from '@/components/Toast';
-import { call } from '@/lib/call';
+import { call, timedOut } from '@/lib/call';
 import {
   CATEGORIES, DIEM_PRESETS, LODGE_PRESETS, MAX_DIEM, MAX_ITEMS, MAX_LINES, MAX_SCHEDULE, TRAVEL_KINDS, expenseTotals, travelTotals,
   type Category, type DiemLine, type ExpenseItem, type ExpenseMonth, type Travel, type TripLine, type TripStop,
@@ -27,7 +27,7 @@ function useRun() {
     const r = await call(fn);
     toast(r.ok ? r.message ?? '完了しました' : r.error);
     if (r.ok) after?.();
-    router.refresh();
+    if (!timedOut(r)) router.refresh();
   });
   return { run, pending, node, toast };
 }
@@ -55,6 +55,8 @@ export function ExpenseBoard({ ym, today, items: initial, month, defaultPerson }
           onSubmit={(v, done) => run(() => addExpenseAction({ ...v, ym }), done)} />}
 
       {items.length > 0 ? (
+        <>
+        <div className="ex-list-h"><b>入力済み</b><span className="sub">{items.length}件・日付順</span></div>
         <ul className="ex-list" aria-label="この月の経費">
           {items.map((it) => (
             <li key={it.id} className="ex-row">
@@ -77,12 +79,13 @@ export function ExpenseBoard({ ym, today, items: initial, month, defaultPerson }
             </li>
           ))}
         </ul>
-      ) : <p className="sub" style={{ margin: '12px 0 0' }}>この月の経費はまだありません。上の欄から1件ずつ入れてください。</p>}
+        </>
+      ) : <p className="ex-empty">この月の経費はまだありません。上の欄から1件ずつ入れてください。</p>}
 
       {items.length > 0 && (
         <div className="ex-sum">
           {CATEGORIES.filter((c) => t.byCat[c]).map((c) => <span key={c}>{c} <b>{yen(t.byCat[c])}</b></span>)}
-          <span className="ex-total">合計 <b>{yen(t.total)}</b><small className="sub">（{items.length}/{MAX_ITEMS}行）</small></span>
+          <span className="ex-total">合計 <b>{yen(t.total)}</b></span>
         </div>
       )}
 
@@ -107,22 +110,25 @@ function ItemForm({ ym, initial, busy, submitLabel, onSubmit, onDelete, keepAfte
     onSubmit(v, () => { if (keepAfter) setV((o) => ({ ...o, payee: '', amount: '', doc: '', subject: '' })); });
   };
   return (
-    <form className="ex-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-      <div className="ex-grid">
-        <label className="field"><span>日付</span><input className="in" type="date" value={v.day} onChange={(e) => set('day', e.target.value)} /></label>
-        <label className="field"><span>金額（円）</span><input className="in num" inputMode="numeric" value={v.amount} onChange={(e) => set('amount', e.target.value)} placeholder="例：3300" /></label>
-        <label className="field"><span>科目</span>
+    <form className={`ex-form${keepAfter ? ' ex-add' : ''}`} onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      {keepAfter && <b className="ex-add-h">経費を1件追加</b>}
+      <div className="ex-item-grid">
+        <label className="field f-day"><span>日付</span><input className="in" type="date" value={v.day} onChange={(e) => set('day', e.target.value)} /></label>
+        <label className="field f-cat"><span>科目</span>
           <select className="sel" value={v.category} onChange={(e) => set('category', e.target.value as Category)}>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
-        {v.category === 'その他' && <label className="field"><span>その他の科目</span><input className="in" value={v.subject} onChange={(e) => set('subject', e.target.value)} maxLength={30} placeholder="例：雑費" /></label>}
-        <label className="field ex-wide"><span>支払内容／支払先</span><input className="in" value={v.payee} onChange={(e) => set('payee', e.target.value)} maxLength={100} placeholder="例：コピー用紙　アスクル" /></label>
-        <label className="field"><span>資料（なくてもよい）</span><input className="in" value={v.doc} onChange={(e) => set('doc', e.target.value)} maxLength={30} placeholder="例：領収書" /></label>
+        <label className="field f-amt"><span>金額（円）</span><input className="in num" inputMode="numeric" value={v.amount} onChange={(e) => set('amount', e.target.value)} placeholder="3300" /></label>
+        <label className="field f-payee"><span>支払内容／支払先</span><input className="in" value={v.payee} onChange={(e) => set('payee', e.target.value)} maxLength={100} placeholder="例：コピー用紙　アスクル" /></label>
+        <label className="field f-doc"><span>資料</span><input className="in" value={v.doc} onChange={(e) => set('doc', e.target.value)} maxLength={30} placeholder="領収書" list="ex-docs" /></label>
+        {v.category === 'その他' && <label className="field f-sub"><span>その他の科目名</span><input className="in" value={v.subject} onChange={(e) => set('subject', e.target.value)} maxLength={30} placeholder="例：租税公課" /></label>}
       </div>
+      <datalist id="ex-docs"><option value="領収書" /><option value="レシート" /><option value="納付依頼書" /><option value="請求書" /></datalist>
       {outside && <p className="sub" style={{ margin: 0 }}>日付が{Number(ym.slice(5))}月ではありませんが、{Number(ym.slice(5))}月分の精算として入れます。</p>}
-      <div className="row" style={{ justifyContent: onDelete ? 'space-between' : 'flex-end' }}>
-        {onDelete && <button type="button" className="btn ghost bad-t" onClick={onDelete} disabled={busy}>消す</button>}
+      <div className="row ex-form-a">
+        {onDelete && <button type="button" className="btn ghost bad-t" onClick={onDelete} disabled={busy}>この行を消す</button>}
+        <span className="grow" />
         <button type="submit" className="btn primary" disabled={busy || !ok}>{submitLabel}</button>
       </div>
     </form>

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { addTaskAction, updateTaskAction, deleteTaskAction, moveTasksAction, toggleTaskAction } from '@/app/actions';
 import { TaskLine, type TaskItem } from '@/components/TaskList';
 import { useToast } from '@/components/Toast';
-import { call } from '@/lib/call';
+import { call, timedOut } from '@/lib/call';
 
 type Person = { id: number; name: string; shift: string | null };
 type Opt = { id: number; name: string };
@@ -24,7 +24,7 @@ export function TaskBoard(p: { storeId: number; date: string; today: string; ite
     const r = await call(fn);
     toast(r.ok ? r.message ?? '完了しました' : r.error);
     if (r.ok) after?.();
-    router.refresh();
+    if (!timedOut(r)) router.refresh();
   });
   const toggle = (t: TaskItem, done: boolean) => {
     setItems((l) => l.map((x) => (x.id === t.id ? { ...x, doneAt: done ? new Date().toISOString() : null, doneBy: done ? 'あなた' : null } : x)));

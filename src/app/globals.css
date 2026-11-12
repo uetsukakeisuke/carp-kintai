@@ -835,55 +835,145 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .stuck .btn.ghost { min-width: 36px; padding: 0 }
 @media (min-width: 761px) { .stuck { bottom: 24px } }
 
-/* ===== 経費精算・旅費精算 ===== */
-.ex-page .ph h1 { margin: 0 }
-.ex-top { display: grid; gap: 10px; margin-bottom: 12px }
-.ex-top > .btn { justify-content: center; text-align: center; text-decoration: none }
-.ex-sec { margin-bottom: 12px }
-.ex-sec > .item-h { margin-bottom: 8px }
-.ex-form, .tr-form { display: grid; gap: 8px }
+/* ===== 経費・旅費精算 ===== */
+.ex-sum-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px }
+.ex-sum-bar > div { display: grid; gap: 1px; min-width: 0 }
+.ex-sum-bar span { font-size: 12.5px; color: var(--muted) }
+.ex-sum-bar b { font-size: 19px; font-weight: 600 }
+.ex-sum-bar small { font-size: 12px; color: var(--muted) }
+.ex-sum-bar .tot b { color: var(--accent); font-size: 22px }
+@media (max-width: 760px) {
+  .ex-sum-bar { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .ex-sum-bar .tot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 8px }
+  .ex-sum-bar > .btn { grid-column: 1 / -1 }
+}
+.ex-cols { display: grid; gap: 12px; align-items: start }
+@media (min-width: 1180px) { .ex-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } }
+.ex-sec { container-type: inline-size; margin: 0 }
+.ex-sec > .item-h { margin-bottom: 10px }
+.ex-form, .tr-form { display: grid; gap: 10px }
+.ex-add { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px }
+.ex-add-h { font-size: 14px }
+.ex-item-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "day amt" "cat cat" "sub sub" "payee payee" "doc doc" }
+.f-day { grid-area: day } .f-cat { grid-area: cat } .f-amt { grid-area: amt } .f-payee { grid-area: payee } .f-doc { grid-area: doc } .f-sub { grid-area: sub }
+@container (min-width: 520px) {
+  .ex-item-grid { grid-template-columns: 150px minmax(0, 1fr) 130px; grid-template-areas: "day cat amt" "payee payee doc" "sub sub sub" }
+}
+.ex-form-a { gap: 8px }
 .ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px }
 .ex-wide { grid-column: 1 / -1 }
-.ex-list { list-style: none; margin: 12px 0 0; padding: 0 }
-.ex-row { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line) }
+.ex-list-h { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 0 }
+.ex-list-h b { font-size: 14px }
+.ex-list { list-style: none; margin: 4px 0 0; padding: 0 }
+.ex-row { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line) }
 .ex-row > .tk-form { grid-column: 1 / -1 }
 .ex-d { font-size: 13px; color: var(--muted) }
 .ex-t { min-width: 0; line-height: 1.4 }
 .ex-t b { font-weight: 600; word-break: break-word }
 .ex-t small { display: block; font-size: 12px; color: var(--muted); word-break: break-word }
-.ex-cat { display: inline-block; font-size: 11px; padding: 0 7px; margin-right: 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
+.ex-cat { display: inline-block; font-size: 11.5px; padding: 0 7px; margin-right: 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
 .ex-amt { font-weight: 600; white-space: nowrap; font-size: 15px }
-.ex-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--line); font-size: 13px; color: var(--muted) }
+.ex-empty { margin: 12px 0 0; padding: 14px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 13.5px; text-align: center }
+.ex-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 2px; padding-top: 10px; border-top: 2px solid var(--line); font-size: 13px; color: var(--muted) }
 .ex-sum b { font-family: var(--f-num); color: var(--ink); font-weight: 600 }
 .ex-total { margin-left: auto; font-size: 15px; color: var(--ink) }
-.ex-foot { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px }
-.ex-foot summary, .ex-setup summary { cursor: pointer; font-size: 14px; min-height: 32px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.ex-foot { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 6px }
+.ex-foot summary, .ex-setup summary { cursor: pointer; font-size: 14px; min-height: 40px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
 .ex-foot summary { color: var(--muted) }
-.tr-h { font-size: 13px; margin: 6px 0 0; color: var(--muted); font-weight: 700; display: flex; gap: 8px; align-items: baseline }
+.ex-months { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px }
+.ex-months .btn small { margin-left: 6px; color: var(--muted); font-weight: 500 }
+@container (max-width: 480px) {
+  .ex-row { grid-template-columns: 3em minmax(0, 1fr) auto }
+  .ex-row > .tk-edit { grid-column: 3; justify-self: end }
+}
+/* 旅費精算 */
+.tr-h { font-size: 13.5px; margin: 6px 0 0; color: var(--ink); font-weight: 700; display: flex; gap: 8px; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--line) }
 .tr-rows { display: grid; gap: 8px }
 .tr-row { display: grid; gap: 6px; align-items: end; padding-bottom: 8px; border-bottom: 1px dashed var(--line) }
 .tr-stop { grid-template-columns: 150px 150px minmax(0, 1fr) minmax(0, 1.4fr) 44px }
-.tr-line { grid-template-columns: 150px 120px minmax(0, 1fr) 120px 44px }
-.tr-x { min-height: 44px; padding: 0; font-size: 18px; color: var(--muted) }
-.tr-add { justify-self: start; min-height: 38px }
+.tr-line { grid-template-columns: 150px 110px minmax(0, 1fr) 120px 44px }
 .tr-diem-sec { display: grid; gap: 8px }
 .tr-diem-sec + .tr-diem-sec { margin-top: 6px }
 .tr-diem { grid-template-columns: minmax(0, 1.6fr) 110px 80px 7em 44px }
-.tr-k { font-size: 14px; font-weight: 700 }
+.tr-k { font-size: 13px; font-weight: 700; color: var(--muted) }
 .tr-amt { text-align: right; padding-bottom: 12px; font-weight: 600 }
+.tr-x { min-height: 44px; padding: 0; font-size: 18px; color: var(--muted) }
+.tr-add { justify-self: start; min-height: 38px }
 .tr-total { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 12px; align-items: end; padding: 10px 0; border-top: 2px solid var(--line) }
 .tr-total > div { display: grid; gap: 2px }
 .tr-total span { font-size: 12px; color: var(--muted) }
 .tr-total b { font-size: 16px; font-weight: 600 }
 .tr-net b { font-size: 19px; color: var(--accent) }
-@media (max-width: 760px) {
-  .tr-stop, .tr-line { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px }
+@container (max-width: 760px) {
+  .tr-stop, .tr-line, .tr-diem { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px }
   .tr-row .tr-x { grid-row: 1; grid-column: 3 }
   .tr-row .tr-wide, .tr-row .tr-wide2 { grid-column: 1 / -1 }
-  .tr-line .tr-money { grid-column: 1 / 3 }
-  .tr-diem { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px }
   .tr-row.tr-diem .tr-wide { grid-column: 1 / 3 }
+  .tr-line .tr-money { grid-column: 1 / 3 }
   .tr-diem .tr-amt { grid-column: 1 / 3; text-align: left; padding: 0 }
-  .ex-row { grid-template-columns: 3em minmax(0, 1fr) auto; }
-  .ex-row > .tk-edit { grid-column: 3; justify-self: end }
+}
+
+/* =========================================================
+   体裁の統一（見出し・幅・まとまり）
+   ========================================================= */
+/* ページの見出し：まとまりの中の画面を並べ、いまの画面を大きく */
+.subnav { display: flex; align-items: baseline; gap: 2px 20px; margin: 2px 0 12px; overflow-x: auto; scrollbar-width: none; white-space: nowrap; padding-bottom: 2px }
+.subnav::-webkit-scrollbar { display: none }
+.subnav a { display: inline-flex; gap: 6px; min-height: 40px; align-items: center; font-size: 14.5px; font-weight: 700; color: var(--muted); text-decoration: none }
+.subnav a:hover { color: var(--ink) }
+.subnav a h1 { margin: 0; font-size: 21px; line-height: 1.3; color: var(--ink) }
+.subnav a[aria-current="page"] { position: relative }
+.subnav a[aria-current="page"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 2px; height: 3px; border-radius: 3px; background: var(--accent); opacity: .85 }
+.subnav:has(a:only-child) a[aria-current="page"]::after { display: none }
+.subnav + .ph { margin-top: 0 }
+.ph > .sub:first-child { max-width: 60ch }
+@media (max-width: 760px) {
+  .subnav { margin: 10px 0 8px; gap: 2px 16px }
+  .subnav a h1 { font-size: 19px }
+  .ph { margin-bottom: 12px }
+  .ph > .sub:first-child { flex-basis: 100% }
+}
+.tabs { margin: 10px 0 12px }
+h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px }
+
+/* 管理：狭いページは左に寄せて、上の見出しとそろえる */
+.area-manage .narrow { max-width: 880px; margin: 0 }
+/* スタッフ：パソコンでも1列（スマホと同じ並び）で、見出し・タブ・中身の左右をそろえる */
+@media (min-width: 761px) {
+  .area-me .top-in, .area-me .wrap > .tabs { max-width: 760px; margin-inline: auto }
+  .area-me .top-in { padding-inline: 16px }
+  .area-me .narrow { max-width: 760px }
+}
+
+/* 給与報告フォーム */
+.rp-main { display: grid; gap: 12px; margin-bottom: 14px }
+.rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px }
+.rp-file { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 320px }
+.rp-file > div { display: grid; min-width: 0 }
+.rp-file b { font-size: 17px; font-family: var(--f-display); word-break: break-all }
+.rp-ic { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); font-size: 20px; font-weight: 700 }
+.rp-dl { min-width: 180px }
+.rp-kv { padding-top: 10px; border-top: 1px solid var(--line) }
+.rp-sheets { font-family: var(--f-body) !important; font-size: 13.5px !important; font-weight: 500 !important }
+.rp-bottom { display: grid; gap: 12px; margin-top: 16px; align-items: start }
+@media (min-width: 1100px) { .rp-bottom { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) } }
+@media (max-width: 760px) { .rp-dl { flex: 1 1 100% } }
+
+/* その他（スマホ） */
+.more { gap: 16px }
+.more-h { font-size: 21px; margin: 10px 0 -4px }
+.cols2 { display: grid; gap: 12px; align-items: start }
+@media (min-width: 1000px) { .cols2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } }
+.ex-setup > summary + * { margin-top: 8px }
+.grow { flex: 1 1 auto }
+/* スマホ：月・日の切り替えは横いっぱい（‹ 2026年11月 ›）で押しやすく */
+@media (max-width: 760px) {
+  .ph > .grow { display: none }
+  .ph > .monthnav { flex: 1 1 100%; justify-content: space-between }
+  .ph > .monthnav .btn { min-width: 52px }
+}
+/* 作業量の予測：パソコンでは2列 */
+@media (min-width: 1100px) {
+  .fc-days { display: block; columns: 2; column-gap: 28px }
+  .fc-days > .fc-day { break-inside: avoid }
 }

@@ -25,3 +25,6 @@ export async function call<R>(fn: () => Promise<R>, limitMs = LIMIT_MS): Promise
     clearTimeout(timer);
   }
 }
+
+/** 時間切れで打ち切ったか（このあと画面の読み直しを頼むと、止まっている処理を待ってボタンが押せないままになるので頼まない） */
+export const timedOut = (r: unknown) => !!r && typeof r === 'object' && (r as Fail).ok === false && (r as Fail).error === SLOW_ERROR;
