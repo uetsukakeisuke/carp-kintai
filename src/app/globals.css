@@ -797,3 +797,10 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .fc-wd label.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent) }
 .fc-wd input { margin: 0 }
 .fc-check { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; margin-top: 8px }
+
+/* ===== 外部連携（APIキー） ===== */
+.api-new { display: grid; gap: 10px }
+.api-scopes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 14px }
+.api-scopes label { display: inline-flex; gap: 6px; align-items: center }
+.api-doc { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px }
+.api-doc code { font-family: var(--f-num); font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; word-break: break-all }

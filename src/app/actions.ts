@@ -12,6 +12,7 @@ import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
 import { newCalToken, dropCalToken } from '@/lib/calendar';
+import { createApiKey, revokeApiKey, isScope } from '@/lib/apikeys';
 import { autoDraft, undoAutoDraft, saveForecastParams } from '@/lib/forecast-data';
 import { readParams, type Window as DraftWindow, type DraftDay } from '@/lib/forecast';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
@@ -451,4 +452,22 @@ export async function undoAutoDraftAction(storeId: number, batch: number): Promi
   const u = await requireManager();
   const removed = await undoAutoDraft(u.id, Number(storeId), Number(batch));
   return { ok: true, message: `${removed.length}コマを取り消しました（あとから時間を直したものは残しています）`, removed };
+}
+
+// ---------- 外部連携（APIキー・管理者だけ） ----------
+export async function createApiKeyAction(name: string, scopes: string[]): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
+  const u = await requireAdmin();
+  const n = String(name ?? '').trim().slice(0, 60);
+  const sc = [...new Set((Array.isArray(scopes) ? scopes : []).filter(isScope))];
+  if (!n) return { ok: false, error: '使い道（例：公式LINE）を入れてください' };
+  if (!sc.length) return { ok: false, error: '読める範囲を1つ以上選んでください' };
+  const key = await createApiKey(u.id, n, sc);
+  revalidatePath('/manage/api');
+  return { ok: true, key };
+}
+export async function revokeApiKeyAction(id: number): Promise<Result> {
+  const u = await requireAdmin();
+  if (!(await revokeApiKey(u.id, Number(id)))) return { ok: false, error: 'すでに取り消されています' };
+  revalidatePath('/manage/api');
+  return { ok: true, message: 'APIキーを取り消しました。このキーではもう読めません' };
 }
