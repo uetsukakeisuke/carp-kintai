@@ -7,7 +7,7 @@ import {
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
 import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
-import { minWageAt, canPunch, type PunchKind } from '@/lib/calc';
+import { minWageAt, wageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
@@ -205,16 +205,27 @@ export async function saveStaffAction(id: number | null, input: StaffInput): Pro
   return { ok: true, message: '保存しました' };
 }
 
-export async function addWageAction(staffId: number, from: string, hourly: number): Promise<Result> {
+/** 時給を変える。replaceLater：この日より後に入っている変更（予定）を取り消して、この日からずっと新しい時給にする */
+export async function addWageAction(staffId: number, from: string, hourly: number, replaceLater = false): Promise<Result> {
   const u = await requireManager();
   if (!isDate(from) || !Number.isInteger(hourly) || hourly <= 0) return { ok: false, error: '時給と適用開始日を確認してください' };
-  const mw = minWageAt(await minWages(), from);
+  const mws = await minWages();
+  const mw = minWageAt(mws, from);
   if (hourly < mw) return { ok: false, error: `${from} 時点の最低賃金（${mw}円）を下回っています` };
+  const existing = await sql<{ effective_from: string; hourly: number }[]>`select effective_from, hourly from wage_rates where staff_id = ${staffId} order by effective_from`;
+  const later = existing.filter((r) => r.effective_from > from);
+  // 変えたあとの時給が、この先の最低賃金の引き上げ日に下回らないか
+  const after = [...existing.filter((r) => r.effective_from < from), { effective_from: from, hourly }, ...(replaceLater ? [] : later)];
+  for (const m of mws.filter((x) => x.effective_from > from)) {
+    const w = wageAt(after, m.effective_from);
+    if (w !== null && w < m.hourly) return { ok: false, error: `${m.effective_from} から最低賃金が ${m.hourly.toLocaleString()}円 になるため、その日から下回ります。時給を上げるか、${m.effective_from} からの時給も入れてください` };
+  }
   await sql`insert into wage_rates (staff_id, effective_from, hourly, created_by) values (${staffId}, ${from}, ${hourly}, ${u.id})
     on conflict (staff_id, effective_from) do update set hourly = excluded.hourly, created_by = excluded.created_by, created_at = now()`;
-  await audit(u.id, 'wage_set', { staffId, from, hourly });
-  revalidatePath('/manage');
-  return { ok: true, message: `${from} から時給 ${hourly.toLocaleString()}円 にしました` };
+  if (replaceLater && later.length) await sql`delete from wage_rates where staff_id = ${staffId} and effective_from > ${from}`;
+  await audit(u.id, 'wage_set', { staffId, from, hourly, removedLater: replaceLater ? later : [] });
+  revalidatePath('/manage', 'layout');
+  return { ok: true, message: `${from} から時給 ${hourly.toLocaleString()}円 にしました${replaceLater && later.length ? `（後の変更 ${later.length}件は取り消しました）` : ''}` };
 }
 
 /** 最低賃金を下回る人をまとめて引き上げる */
@@ -226,7 +237,7 @@ export async function raiseToMinWageAction(from: string, hourly: number, staffId
       on conflict (staff_id, effective_from) do update set hourly = greatest(wage_rates.hourly, excluded.hourly)`;
   }
   await audit(u.id, 'wage_raise_min', { from, hourly, staffIds });
-  revalidatePath('/manage');
+  revalidatePath('/manage', 'layout');
   return { ok: true, message: `${staffIds.length}名の時給を ${from} から ${hourly.toLocaleString()}円 に引き上げました` };
 }
 

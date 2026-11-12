@@ -982,3 +982,5 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .wage-from .chips { flex-wrap: wrap }
 .wage-note { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; line-height: 1.6 }
 .wage-note.past { background: var(--warn-soft) }
+.wage-later { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13.5px; line-height: 1.55; cursor: pointer }
+.wage-later input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--accent) }

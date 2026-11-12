@@ -23,9 +23,10 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
   const [toast, node] = useToast();
   const [pending, start] = useTransition();
   const [edit, setEdit] = useState<(StaffInput & { id: number | null; active: boolean }) | null>(null);
-  const [wage, setWage] = useState<{ s: S; from: string; hourly: number } | null>(null);
+  const [wage, setWage] = useState<{ s: S; from: string; hourly: number; replace: boolean } | null>(null);
   const [err, setErr] = useState('');
   const low = staff.filter((s) => s.active && (s.belowNow || s.belowNext));
+  const drops = staff.filter((s) => s.active && s.payType === 'hourly' && s.wage !== null && s.future.some((f) => f.hourly < s.wage!));
   const run = (f: () => Promise<{ ok: true; message?: string } | { ok: false; error: string }>, close: () => void) => start(async () => {
     setErr('');
     const r = await call(f);
@@ -48,6 +49,10 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
           </button>
         )}
       </div>
+      {drops.length > 0 && (
+        <div className="banner warn"><span><b>{drops.map((s) => s.name).join('、')} は、先に入っている変更で時給が下がります</b>（{drops.map((s) => { const f = s.future.find((x) => x.hourly < s.wage!)!; return `${s.name.split(' ')[0]} ${md(f.effective_from)}〜${yen(f.hourly)}`; }).join('、')}）。
+          意図していない場合は「時給」を押し、今の時給のまま「この日より後に入っている変更を取り消す」にチェックを入れて保存してください。</span></div>
+      )}
       <div className="row" style={{ marginBottom: 10, justifyContent: 'space-between' }}>
         <button className="btn primary" onClick={() => { setErr(''); setEdit({ id: null, name: '', kana: '', storeId: stores[0]?.id ?? null, employment: 'ﾊﾟｰﾄ', transport: 0, commuteMeans: '電車', hourly: minWage.next && today >= minWage.next.effective_from ? minWage.next.hourly : Math.max(minWage.now, 1200), wageFrom: today, active: true, role: 'staff' }); }}>スタッフを追加</button>
         <Link className="btn ghost" href={showAll ? '/manage/staff' : '/manage/staff?all=1'}>{showAll ? '在籍中だけ表示' : '退職者も表示'}</Link>
@@ -61,11 +66,11 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
               <td data-label="所属"><span>{storeName(s.storeId)}<span className="sub sp-only" style={{ marginLeft: 6 }}>（{ROLE[s.role]}）</span></span></td>
               <td data-label="権限" className="hide-sp">{ROLE[s.role]}</td>
               <td data-label="時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.payType !== 'monthly' && s.since && <small className="sub" style={{ marginLeft: 4 }}>{md(s.since)}〜</small>}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
-              <td data-label="改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
+              <td data-label="改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.payType === 'hourly' && s.wage !== null && s.future.some((f) => f.hourly < s.wage!) && <span className="flag f-late">時給が下がる予定</span>}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
               <td data-label="交通費" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
               <td data-label="ログイン" className={s.role === 'staff' ? 'hide-sp' : ''}>{s.role === 'staff' ? <span className="sub">名前だけ</span> : s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">パスワード設定済み</span>}</td>
               <td className="acts" style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                {s.payType === 'hourly' && <button className="btn" onClick={() => { setErr(''); setWage({ s, from: today, hourly: s.wage ?? minWage.now }); }}>時給</button>}{' '}
+                {s.payType === 'hourly' && <button className="btn" onClick={() => { setErr(''); setWage({ s, from: today, hourly: s.wage ?? minWage.now, replace: true }); }}>時給</button>}{' '}
                 <button className="btn" onClick={() => { setErr(''); setEdit({ id: s.id, name: s.name, kana: s.kana, storeId: s.storeId, employment: s.employment, transport: s.transport, commuteMeans: s.commuteMeans, role: s.role, active: s.active }); }}>編集</button>
               </td>
             </tr>
@@ -91,16 +96,33 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
                 <input id="wf" className="in" type="date" value={wage.from} onChange={(e) => setWage({ ...wage, from: e.target.value })} />
               </div>
             </div>
-            <p className={`wage-note${wage.from && wage.from <= today ? ' past' : ''}`}>
-              {!wage.from ? '日付を選んでください。'
-                : wage.from <= today
-                  ? <>{md(wage.from)}以降の勤務は、<b>すでに打刻した分も</b>新しい時給 {yen(wage.hourly)} で計算し直します（シフトの人件費・{Number(wage.from.slice(5, 7))}月分の給与報告フォームにも反映）。それより前の勤務は元の時給のままです。</>
-                  : <>{md(wage.from)}の勤務から新しい時給 {yen(wage.hourly)} になります。それまでは今の時給 {yen(wage.s.wage)} のままです。</>}
-            </p>
-            {wage.s.history.length > 0 && <p className="sub">これまで：{wage.s.history.map((h) => `${md(h.effective_from)}〜${yen(h.hourly)}`).join(' → ')}</p>}
+            {(() => {
+              const later = wage.from ? wage.s.history.filter((h) => h.effective_from > wage.from) : [];
+              const back = !wage.replace && later[0];
+              return (
+                <>
+                  {later.length > 0 && (
+                    <label className="wage-later">
+                      <input type="checkbox" checked={wage.replace} onChange={(e) => setWage({ ...wage, replace: e.target.checked })} />
+                      <span>この日より後に入っている変更（{later.map((h) => `${md(h.effective_from)}〜${yen(h.hourly)}`).join('、')}）を取り消して、ずっと {yen(wage.hourly)} にする</span>
+                    </label>
+                  )}
+                  <p className={`wage-note${wage.from && wage.from <= today ? ' past' : ''}`}>
+                    {!wage.from ? '日付を選んでください。'
+                      : <>
+                        {wage.from <= today
+                          ? <>{md(wage.from)}以降の勤務は、<b>すでに打刻した分も</b>新しい時給 {yen(wage.hourly)} で計算し直します（シフトの人件費・{Number(wage.from.slice(5, 7))}月分の給与報告フォームにも反映）。それより前の勤務は元の時給のままです。</>
+                          : <>{md(wage.from)}の勤務から新しい時給 {yen(wage.hourly)} になります。それまでは今の時給 {yen(wage.s.wage)} のままです。</>}
+                        {back && <><br /><b className="bad-t">ただし {md(back.effective_from)} からは、入っている変更のとおり {yen(back.hourly)} になります。</b></>}
+                      </>}
+                  </p>
+                </>
+              );
+            })()}
+            {wage.s.history.length > 0 && <p className="sub">履歴と予定：{wage.s.history.map((h) => `${md(h.effective_from)}〜${yen(h.hourly)}`).join(' → ')}</p>}
             {err && <p className="err">{err}</p>}
             <div className="actions"><button className="btn" onClick={() => setWage(null)}>キャンセル</button>
-              <button className="btn primary" disabled={pending} onClick={() => run(() => addWageAction(wage.s.id, wage.from, wage.hourly), () => setWage(null))}>保存する</button></div>
+              <button className="btn primary" disabled={pending} onClick={() => run(() => addWageAction(wage.s.id, wage.from, wage.hourly, wage.replace), () => setWage(null))}>保存する</button></div>
           </div>
         </div>
       )}
