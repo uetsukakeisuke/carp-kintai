@@ -31,11 +31,32 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
     setHopes((h) => { const n = { ...h }; if (v) n[date] = v; else delete n[date]; return n; });
   };
   const key = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const MIN_T = TIMES[0], MAX_T = TIMES[TIMES.length - 1];
+  /** 開始を変えたら、終了が開始より前にならないよう同じ長さだけずらす（終了を変えたときも同様） */
+  const fixStart = (v: { start: number; end: number }, start: number) => {
+    if (start < v.end) return { start, end: v.end };
+    const len = Math.max(60, v.end - v.start);
+    return { start: Math.min(start, MAX_T - 30), end: Math.min(start + len, MAX_T) };
+  };
+  const fixEnd = (v: { start: number; end: number }, end: number) => {
+    if (end > v.start) return { start: v.start, end };
+    const len = Math.max(60, v.end - v.start);
+    return { start: Math.max(end - len, MIN_T), end: Math.max(end, MIN_T + 30) };
+  };
   const list = Object.entries(hopes);
   const total = list.reduce((a, [, v]) => a + (v.end - v.start), 0);
   const bad = list.find(([, v]) => v.end <= v.start);
 
-  const save = (submit: boolean) => start(async () => {
+  const save = (submit: boolean) => {
+    if (bad) {
+      // どの日を直せばよいか知らせて、その日まで移動する
+      toast(`${Number(bad[0].slice(5, 7))}/${Number(bad[0].slice(8, 10))} の時間を直してください（終了を開始より後に）`);
+      document.getElementById(`hr-${bad[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    doSave(submit);
+  };
+  const doSave = (submit: boolean) => start(async () => {
     const r = await call(() => saveHopesAction(year, month, list.map(([date, v]) => ({ date, start: v.start, end: v.end })), submit));
     toast(r.ok ? r.message ?? '保存しました' : r.error);
     if (r.ok) { setDirty(false); router.refresh(); }
@@ -52,14 +73,14 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
         {Array.from({ length: nd }, (_, i) => i + 1).map((d) => {
           const k = key(d), v = hopes[k], w = new Date(year, month - 1, d).getDay();
           return (
-            <div key={k} className={`hrow${w === 0 ? ' sun' : w === 6 ? ' sat' : ''}${v ? ' on' : ''}`}>
+            <div key={k} id={`hr-${k}`} className={`hrow${w === 0 ? ' sun' : w === 6 ? ' sat' : ''}${v ? ' on' : ''}`}>
               <div className="dt"><b>{month}/{d}</b><small>{WD[w]}曜日</small></div>
               {v ? (
                 <div className="htimes">
-                  <select className="sel" aria-label={`${d}日 開始`} value={v.start} onChange={(e) => { const n = { ...v, start: Number(e.target.value) }; set(k, n); remember(n); }}>
+                  <select className="sel" aria-label={`${d}日 開始`} value={v.start} onChange={(e) => { const n = fixStart(v, Number(e.target.value)); set(k, n); remember(n); }}>
                     {TIMES.map((x) => <option key={x} value={x}>{hm(x)}</option>)}
                   </select>〜
-                  <select className="sel" aria-label={`${d}日 終了`} value={v.end} onChange={(e) => { const n = { ...v, end: Number(e.target.value) }; set(k, n); remember(n); }}>
+                  <select className="sel" aria-label={`${d}日 終了`} value={v.end} onChange={(e) => { const n = fixEnd(v, Number(e.target.value)); set(k, n); remember(n); }}>
                     {TIMES.map((x) => <option key={x} value={x}>{hm(x)}</option>)}
                   </select>
                   <button className="btn ghost" onClick={() => set(k, null)}>消す</button>
@@ -71,9 +92,11 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
         })}
       </div>
       <div className="submitbar">
-        <button className="btn primary" style={{ flex: '1 1 auto', fontSize: 15 }} disabled={pending || !!bad} onClick={() => save(true)}>{submitted ? '修正を提出する' : '希望を提出する'}</button>
+        <button className="btn primary" style={{ flex: '1 1 auto', fontSize: 15 }} disabled={pending} onClick={() => save(true)}>{submitted ? '修正を提出する' : '希望を提出する'}</button>
         {dirty && <button className="btn" disabled={pending} onClick={() => save(false)}>下書き保存</button>}
         <span className="sub">出勤希望 {list.length}日 ・ 合計 {(total / 60).toFixed(1)}時間{pending ? ' ・ 保存中…' : dirty ? ' ・ まだ保存していない変更があります' : ''}</span>
+        <span className="sub" style={{ flexBasis: '100%' }}>時間を入れていない日は「休み（出勤しない日）」として提出されます。</span>
+        {bad && <span className="err" style={{ flexBasis: '100%' }}>{Number(bad[0].slice(5, 7))}/{Number(bad[0].slice(8, 10))} の時間が逆になっています。直すと提出できます。</span>}
       </div>
       {node}
     </>

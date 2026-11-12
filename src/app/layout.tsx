@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SwRegister } from './sw-register';
+import { StuckBanner } from '@/components/StuckBanner';
+
+// サーバーの処理は30秒で打ち切る（止まった処理が後ろの操作を待たせ続けないように。初期値は最大300秒）
+export const maxDuration = 30;
 
 export const metadata: Metadata = {
   title: 'カープ勤怠',
@@ -25,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
+        <StuckBanner />
         <SwRegister />
       </body>
     </html>

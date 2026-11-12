@@ -821,3 +821,16 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .more-hint.warn { color: var(--warn); background: var(--warn-soft) }
 .more-hint.ok { color: var(--ok); background: var(--ok-soft) }
 .more-go { color: var(--faint); font-size: 18px; text-align: right }
+
+/* ===== 読み込み中 ===== */
+.loading-screen { display: grid; justify-items: center; align-content: center; gap: 10px; min-height: 40vh; color: var(--muted); font-size: 14px }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s } }
+
+/* ===== 通信が止まったときの案内 ===== */
+.stuck { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60; width: min(560px, calc(100% - 24px));
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--warn); border-radius: 14px; box-shadow: var(--shadow); font-size: 14px }
+.stuck > span { flex: 1 1 auto }
+.stuck .btn.ghost { min-width: 36px; padding: 0 }
+@media (min-width: 761px) { .stuck { bottom: 24px } }

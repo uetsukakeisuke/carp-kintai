@@ -4,6 +4,8 @@ import { loginAction } from '../actions';
 import { Keypad } from '@/components/Keypad';
 import { call } from '@/lib/call';
 
+// 以前は「最後にログインした店長・管理者」を覚えて暗証番号の画面から始めていたが、
+// ログアウト後の画面が人によって違って分かりにくいため、誰でも名前の一覧から始める
 const KEY = 'kintai-last-staff';
 
 export function LoginForm({ stores, staff }: { stores: { id: number; name: string }[]; staff: { id: number; name: string; storeId: number | null; pin: boolean }[] }) {
@@ -13,9 +15,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
   const [err, setErr] = useState('');
   const [pending, start] = useTransition();
 
-  useEffect(() => {
-    try { const v = Number(localStorage.getItem(KEY)); if (v && staff.some((s) => s.id === v && s.pin)) setSel(v); } catch {}
-  }, [staff]);
+  useEffect(() => { try { localStorage.removeItem(KEY); } catch {} }, []); // 以前の版で覚えていたものを消す
   // スタッフは名前を押すだけでログイン
   const pick = (s: { id: number; pin: boolean }) => {
     if (s.pin) { setSel(s.id); return; }
@@ -30,7 +30,6 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
     if (!sel) return;
     setErr('');
     start(async () => {
-      try { localStorage.setItem(KEY, String(sel)); } catch {}
       const r = await call(() => loginAction(sel, v));
       if (r && !r.ok) { setErr(r.error); setPin(''); }
     });
@@ -43,7 +42,7 @@ export function LoginForm({ stores, staff }: { stores: { id: number; name: strin
       <div>
         <div className="row" style={{ justifyContent: 'space-between', margin: '12px 0 0' }}>
           <span><b style={{ fontSize: 18 }}>{me.name} さん</b><br /><span className="sub">店長・管理者はパスワード（4桁）を入れてください（変えていなければ 1111）</span></span>
-          <button className="btn ghost" type="button" onClick={() => { setSel(null); setPin(''); setErr(''); try { localStorage.removeItem(KEY); } catch {} }}>別の人</button>
+          <button className="btn ghost" type="button" onClick={() => { setSel(null); setPin(''); setErr(''); }}>別の人</button>
         </div>
         <Keypad value={pin} onChange={setPin} onDone={submit} disabled={pending} />
         {pending && <p className="sub" style={{ textAlign: 'center' }}>確認しています…</p>}

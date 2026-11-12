@@ -36,22 +36,29 @@ export function FaceCapture({ onDone, onSkip, skipLabel, busyText = '照合し�
     return () => { alive = false; stop(); };
   }, []);
 
-  // ライブ映像：0.8秒ごとに顔を探し、1人だけはっきり写ったら自動で撮る
+  // ライブ映像：顔を探し、1人だけはっきり写ったら自動で撮る。
+  // 1回の判定に時間がかかる端末では間をあけて、画面（「顔なしで打刻」など）が固まらないようにする
   useEffect(() => {
     if (mode !== 'live') return;
-    let alive = true, running = false;
-    const t = setInterval(async () => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const loop = async () => {
       const v = video.current;
-      if (!alive || running || doneRef.current || !v || v.readyState < 2) return;
-      running = true;
-      try {
-        const r = await describeFace(v);
-        if (!alive) return;
-        if ('d' in r) finish(r.d); else setErr(FACE_ERR[r.err]);
-      } catch { if (alive) setErr(FACE_ERR.load); }
-      running = false;
-    }, 800);
-    return () => { alive = false; clearInterval(t); };
+      let took = 0;
+      if (alive && !doneRef.current && v && v.readyState >= 2) {
+        const t0 = performance.now();
+        try {
+          const r = await describeFace(v);
+          if (!alive) return;
+          if ('d' in r) { finish(r.d); return; }
+          setErr(FACE_ERR[r.err]);
+        } catch { if (alive) setErr(FACE_ERR.load); }
+        took = performance.now() - t0;
+      }
+      if (alive && !doneRef.current) timer = setTimeout(loop, Math.max(800, Math.min(took * 2, 4000)));
+    };
+    timer = setTimeout(loop, 300);
+    return () => { alive = false; clearTimeout(timer); };
   }, [mode]); // eslint-disable-line
 
   const onFile = async (f: File | undefined) => {

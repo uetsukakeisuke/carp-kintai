@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
+  // デプロイごとの番号。古い画面のまま操作したときは、自動で読み込み直す（固まるのを防ぐ）
+  deploymentId: process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || undefined,
   // 給与報告のひな形（Excel）をサーバーに同梱する
   outputFileTracingIncludes: { '/api/report': ['./templates/**'] },
   serverExternalPackages: ['bcryptjs', 'unpdf'],
