@@ -22,7 +22,8 @@ export const MANAGE_NAV: NavItem[] = [
   { href: '/manage/payslips', label: '給与明細', bottom: false },
   { href: '/manage/settings', label: '店舗・端末', bottom: false },
   { href: '/manage/orders', label: '受発注の報告', bottom: false, admin: true },
-  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders', '/manage/report', '/manage/forecast', '/manage/api'] },
+  { href: '/manage/expenses', label: '経費精算', bottom: false, admin: true },
+  { href: '/manage/more', label: 'その他', icon: '⋯', tab: false, also: ['/manage/hopes', '/manage/payslips', '/manage/settings', '/manage/orders', '/manage/report', '/manage/forecast', '/manage/api', '/manage/expenses'] },
 ];
 
 export function Shell({ user, manager, area, badges, children }: {

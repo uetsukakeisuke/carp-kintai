@@ -17,6 +17,7 @@ const GROUPS: { name: string; items: Item[] }[] = [
   { name: 'お金', items: [
     { href: '/manage/report', icon: '⇩', title: '給与報告', desc: 'アクトヴィジョンに送る月の報告（xlsx）' },
     { href: '/manage/payslips', icon: '¥', title: '給与明細', desc: 'Gmailからの取り込み・全員の明細' },
+    { href: '/manage/expenses', icon: '✈︎', title: '経費精算・旅費精算', desc: '立て替えた経費と出張の精算（Excel・スプレッドシート）', admin: true },
   ] },
   { name: '京都工房', items: [
     { href: '/manage/orders', icon: '▤', title: '受発注の報告', desc: '納期の遅れ・未入荷・未請求', admin: true, hint: 'orders' },

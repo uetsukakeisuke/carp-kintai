@@ -16,6 +16,8 @@ import { createApiKey, revokeApiKey, isScope } from '@/lib/apikeys';
 import { autoDraft, undoAutoDraft, saveForecastParams } from '@/lib/forecast-data';
 import { readParams, type Window as DraftWindow, type DraftDay } from '@/lib/forecast';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
+import { cleanFooter, cleanItem, cleanTrip } from '@/lib/expenses';
+import { addItem, deleteItem, deleteTrip, rotateExpenseSecret, saveFooter, saveTrip, updateItem } from '@/lib/expenses-data';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 const KINDS: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
@@ -470,4 +472,61 @@ export async function revokeApiKeyAction(id: number): Promise<Result> {
   if (!(await revokeApiKey(u.id, Number(id)))) return { ok: false, error: 'すでに取り消されています' };
   revalidatePath('/manage/api');
   return { ok: true, message: 'APIキーを取り消しました。このキーではもう読めません' };
+}
+
+// ---------- 経費精算・旅費精算（管理者だけ） ----------
+const obj = (v: unknown) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+export async function addExpenseAction(input: unknown): Promise<Result> {
+  const u = await requireAdmin();
+  const c = cleanItem(obj(input));
+  if (!c.ok) return c;
+  const err = await addItem(u.id, c.value);
+  if (err) return { ok: false, error: err };
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '追加しました' };
+}
+export async function updateExpenseAction(id: number, input: unknown): Promise<Result> {
+  const u = await requireAdmin();
+  const c = cleanItem(obj(input));
+  if (!c.ok) return c;
+  const err = await updateItem(u.id, Number(id), c.value);
+  if (err) return { ok: false, error: err };
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '保存しました' };
+}
+export async function deleteExpenseAction(id: number): Promise<Result> {
+  const u = await requireAdmin();
+  if (!(await deleteItem(u.id, Number(id)))) return { ok: false, error: 'その行は見つかりませんでした（消された可能性があります）' };
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '消しました' };
+}
+export async function saveExpenseFooterAction(input: unknown): Promise<Result> {
+  const u = await requireAdmin();
+  const c = cleanFooter(obj(input));
+  if (!c.ok) return c;
+  await saveFooter(u.id, c.value);
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '保存しました' };
+}
+export async function saveTripAction(id: number | null, input: unknown): Promise<{ ok: true; message: string; id: number } | { ok: false; error: string }> {
+  const u = await requireAdmin();
+  const c = cleanTrip(obj(input));
+  if (!c.ok) return c;
+  const r = await saveTrip(u.id, id ? Number(id) : null, c.value);
+  if ('error' in r) return { ok: false, error: r.error };
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '保存しました', id: r.id };
+}
+export async function deleteTripAction(id: number): Promise<Result> {
+  const u = await requireAdmin();
+  if (!(await deleteTrip(u.id, Number(id)))) return { ok: false, error: 'その旅費精算書は見つかりませんでした（消された可能性があります）' };
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '消しました' };
+}
+export async function rotateExpenseSecretAction(): Promise<Result> {
+  const u = await requireAdmin();
+  await rotateExpenseSecret();
+  await audit(u.id, 'expense_secret_rotated', {});
+  revalidatePath('/manage/expenses');
+  return { ok: true, message: '合言葉を作り直しました。スプレッドシートのスクリプトを貼り替えてください' };
 }
