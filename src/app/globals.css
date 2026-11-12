@@ -866,8 +866,10 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .tr-line { grid-template-columns: 150px 120px minmax(0, 1fr) 120px 44px }
 .tr-x { min-height: 44px; padding: 0; font-size: 18px; color: var(--muted) }
 .tr-add { justify-self: start; min-height: 38px }
-.tr-diem { display: grid; grid-template-columns: 6em minmax(0, 1fr) minmax(0, 1fr) 7em; gap: 6px 8px; align-items: end }
-.tr-k { font-size: 14px; padding-bottom: 12px }
+.tr-diem-sec { display: grid; gap: 8px }
+.tr-diem-sec + .tr-diem-sec { margin-top: 6px }
+.tr-diem { grid-template-columns: minmax(0, 1.6fr) 110px 80px 7em 44px }
+.tr-k { font-size: 14px; font-weight: 700 }
 .tr-amt { text-align: right; padding-bottom: 12px; font-weight: 600 }
 .tr-total { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 12px; align-items: end; padding: 10px 0; border-top: 2px solid var(--line) }
 .tr-total > div { display: grid; gap: 2px }
@@ -879,8 +881,9 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
   .tr-row .tr-x { grid-row: 1; grid-column: 3 }
   .tr-row .tr-wide, .tr-row .tr-wide2 { grid-column: 1 / -1 }
   .tr-line .tr-money { grid-column: 1 / 3 }
-  .tr-diem { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 6.5em }
-  .tr-diem .tr-k { grid-column: 1 / -1; padding: 4px 0 0; font-weight: 700 }
+  .tr-diem { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px }
+  .tr-row.tr-diem .tr-wide { grid-column: 1 / 3 }
+  .tr-diem .tr-amt { grid-column: 1 / 3; text-align: left; padding: 0 }
   .ex-row { grid-template-columns: 3em minmax(0, 1fr) auto; }
   .ex-row > .tk-edit { grid-column: 3; justify-self: end }
 }

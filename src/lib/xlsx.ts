@@ -51,49 +51,6 @@ export async function writeCells(zip: JSZip, part: string, cells: Iterable<[stri
   zip.file(part, s.xml());
 }
 
-const escAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const escText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const WS_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet';
-const WS_CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml';
-
-/** シートを複製して末尾に足す（印刷範囲も写す）。足したシートのファイル名を返す */
-export async function copySheet(zip: JSZip, srcPart: string, name: string): Promise<string> {
-  const wbP = 'xl/workbook.xml', relP = 'xl/_rels/workbook.xml.rels', ctP = '[Content_Types].xml';
-  let wb = await zip.file(wbP)!.async('string');
-  let rels = await zip.file(relP)!.async('string');
-  let ct = await zip.file(ctP)!.async('string');
-  const src = await zip.file(srcPart)?.async('string');
-  if (!src) throw new Error(`ひな形に ${srcPart} がありません`);
-  let n = 1;
-  while (zip.file(`xl/worksheets/sheet${n}.xml`)) n++;
-  const part = `xl/worksheets/sheet${n}.xml`;
-  zip.file(part, src.replace(/\stabSelected="1"/g, ''));
-  // 元のシートの r:id と位置
-  const relRe = /<Relationship\b[^>]*>/g;
-  let srcRid = '';
-  for (const m of rels.match(relRe) ?? []) {
-    const target = /Target="([^"]+)"/.exec(m)?.[1] ?? '';
-    if (target.replace(/^\//, '').replace(/^(?!xl\/)/, 'xl/') === srcPart) srcRid = /Id="([^"]+)"/.exec(m)?.[1] ?? '';
-  }
-  const sheets = wb.match(/<sheet\b[^>]*\/>/g) ?? [];
-  const srcIdx = sheets.findIndex((s) => new RegExp(`r:id="${srcRid}"`).test(s));
-  const maxId = Math.max(0, ...sheets.map((s) => Number(/sheetId="(\d+)"/.exec(s)?.[1] ?? 0)));
-  const rid = `rIdC${n}`;
-  rels = rels.replace('</Relationships>', `<Relationship Type="${WS_TYPE}" Target="/${part}" Id="${rid}"/></Relationships>`);
-  wb = wb.replace('</sheets>', `<sheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" name="${escAttr(name)}" sheetId="${maxId + 1}" state="visible" r:id="${rid}"/></sheets>`);
-  if (srcIdx >= 0) {
-    const area = new RegExp(`<definedName name="_xlnm\\.Print_Area" localSheetId="${srcIdx}">([^<]*)</definedName>`).exec(wb);
-    if (area) {
-      const ref = area[1].replace(/^.*!/, '');
-      const dn = `<definedName name="_xlnm.Print_Area" localSheetId="${sheets.length}">'${escText(name.replace(/'/g, "''"))}'!${ref}</definedName>`;
-      wb = wb.replace('</definedNames>', `${dn}</definedNames>`);
-    }
-  }
-  ct = ct.replace('</Types>', `<Override PartName="/${part}" ContentType="${WS_CT}"/></Types>`);
-  zip.file(wbP, wb); zip.file(relP, rels); zip.file(ctP, ct);
-  return part;
-}
-
 /** 開いたときに計算し直す */
 export async function recalcOnLoad(zip: JSZip) {
   const wp = 'xl/workbook.xml';
@@ -102,4 +59,15 @@ export async function recalcOnLoad(zip: JSZip) {
     ? wx.replace(/<calcPr([^>]*?)\s*\/>/, (_m, a: string) => `<calcPr${a.replace(/\sfullCalcOnLoad="[^"]*"/, '')} fullCalcOnLoad="1"/>`)
     : wx.replace('</workbook>', '<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>');
   zip.file(wp, wx);
+}
+
+/** Excel をダウンロードさせる返事（日本語のファイル名つき） */
+export function xlsxResponse(bytes: Uint8Array, name: string) {
+  return new Response(Buffer.from(bytes), {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="report.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      'Cache-Control': 'no-store',
+    },
+  });
 }

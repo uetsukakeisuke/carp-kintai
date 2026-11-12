@@ -2,8 +2,10 @@ import 'server-only';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import JSZip from 'jszip';
-import { copySheet, recalcOnLoad, writeCells, type CellValue } from './xlsx';
-import type { SheetCells } from './expenses';
+import { createHash } from 'node:crypto';
+import { recalcOnLoad, writeCells, type CellValue } from './xlsx';
+import { formNames, reportSheets, type SheetCells } from './expenses';
+import { monthData } from './expenses-data';
 import { sql } from './db';
 import { listStaff, listStores, punchesBetween, ratesFor } from './data';
 import { buildReportRows, type ReportRow } from './calc';
@@ -11,8 +13,8 @@ import { daysInMonth, ymd, jstParts } from './time';
 
 export const FIRST_ROW = 19;  // アルバイト・パート欄の1行目
 export const LAST_ROW = 53;   // （当月異動者）欄の手前まで
-const EXPENSE_PART = 'xl/worksheets/sheet2.xml'; // 現金経費精算
-const TRAVEL_PART = 'xl/worksheets/sheet3.xml';  // 旅費精算
+const TEMPLATE = 'templates/kyuyo_houkoku_template.xlsx'; // 給与報告・現金経費精算・旅費精算の3枚
+const PARTS = { expense: 'xl/worksheets/sheet2.xml', travel: 'xl/worksheets/sheet3.xml' } as const;
 
 export async function reportData(year: number, month: number) {
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
@@ -42,10 +44,10 @@ export async function reportData(year: number, month: number) {
 }
 
 /** 給与報告フォーム（税理士事務所の書式）に記入した Excel を作る。計算式・書式はひな形のまま。
- *  sheets：「現金経費精算」「旅費精算」に書くもの（旅費精算が2枚以上なら、シートを複製して足す） */
+ *  sheets：「現金経費精算」「旅費精算」のシートに書くもの */
 export async function buildReportXlsx(rows: ReportRow[], header: { m: number; last: number; payM: number; payD: number }, sheets: SheetCells[] = []): Promise<Uint8Array> {
   if (rows.length > LAST_ROW - FIRST_ROW + 1) throw new Error(`行数がフォームの上限（${LAST_ROW - FIRST_ROW + 1}行）を超えています`);
-  const tpl = await readFile(join(process.cwd(), 'templates/kyuyo_houkoku_template.xlsx'));
+  const tpl = await readFile(join(process.cwd(), TEMPLATE));
   const zip = await JSZip.loadAsync(tpl);
   const cells: [string, CellValue][] = [];
   const set = (ref: string, v: CellValue) => cells.push([ref, v]);
@@ -67,14 +69,23 @@ export async function buildReportXlsx(rows: ReportRow[], header: { m: number; la
   });
   await writeCells(zip, 'xl/worksheets/sheet1.xml', cells);
 
-  // 現金経費精算・旅費精算（旅費精算の2枚目からは、書き込む前のひな形を複製）
-  const expense = sheets.find((x) => x.kind === 'expense');
-  const travels = sheets.filter((x) => x.kind === 'travel');
-  const parts = [TRAVEL_PART];
-  for (let i = 1; i < travels.length; i++) parts.push(await copySheet(zip, TRAVEL_PART, travels[i].name));
-  if (expense) await writeCells(zip, EXPENSE_PART, expense.cells);
-  for (let i = 0; i < travels.length; i++) await writeCells(zip, parts[i], travels[i].cells);
+  // 現金経費精算・旅費精算
+  for (const sh of sheets) await writeCells(zip, PARTS[sh.kind], sh.cells);
 
   await recalcOnLoad(zip);
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+let tplHash: string | null = null;
+/** その月の給与報告フォームに入れるもの一式。hash は中身が変わったかどうかの目印（ドライブへ保存し直すか決める） */
+export async function reportBundle(year: number, month: number, withExpenses: boolean) {
+  const ym = `${year}-${String(month).padStart(2, '0')}`;
+  const [{ rows, header, warnings }, exp] = await Promise.all([
+    reportData(year, month),
+    withExpenses ? monthData(ym).catch((e) => { console.error('[report] 経費精算を読めませんでした', e); return null; }) : Promise.resolve(null),
+  ]);
+  const sheets: SheetCells[] = reportSheets(ym, exp?.month ?? null, exp?.items ?? [], exp?.travel ?? null);
+  tplHash ??= createHash('sha256').update(await readFile(join(process.cwd(), TEMPLATE))).digest('hex').slice(0, 12);
+  const hash = createHash('sha256').update(JSON.stringify({ tplHash, rows, header, sheets })).digest('hex').slice(0, 24);
+  return { ym, rows, header, warnings, sheets, names: formNames(ym, header.payD), hash };
 }

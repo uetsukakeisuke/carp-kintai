@@ -52,8 +52,29 @@ alter table settings
 alter table expense_months enable row level security;
 alter table expense_items enable row level security;
 alter table travel_reports enable row level security;
-insert into schema_migrations (name) values ('011_expenses.sql')
+-- 旅費精算書は1か月に1枚。日当は行ごと（名前・単価・数）
+alter table travel_reports
+  add column if not exists diem jsonb not null default '[]';
+alter table travel_reports
+  add column if not exists lodge jsonb not null default '[]';
+alter table travel_reports drop column if exists diem_unit;
+alter table travel_reports drop column if exists diem_days;
+alter table travel_reports drop column if exists lodge_unit;
+alter table travel_reports drop column if exists lodge_nights;
+drop index if exists travel_reports_ym_idx;
+create unique index if not exists travel_reports_ym_key
+  on travel_reports(ym);
+-- ドライブへの自動保存の結果
+alter table settings add column if not exists form_sync jsonb;
+insert into schema_migrations (name) values
+  ('011_expenses.sql'), ('012_travel_monthly.sql')
 on conflict do nothing;
-select count(*) as "表（3なら完了）" from information_schema.tables
-where table_schema = 'public'
-  and table_name in ('expense_months', 'expense_items', 'travel_reports');
+select
+  (select count(*) from information_schema.tables
+    where table_schema = 'public'
+      and table_name in ('expense_months', 'expense_items', 'travel_reports')
+  ) as "表（3なら完了）",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'travel_reports'
+      and column_name in ('diem', 'lodge')
+  ) as "列（2なら完了）";

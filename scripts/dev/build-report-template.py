@@ -1,11 +1,12 @@
 """給与報告のひな形に「現金経費精算」「旅費精算」のシートを足す（開発用・1回だけ使う）。
 
 使い方:
-  python3 scripts/dev/build-report-template.py <元のひな形.xlsx（給与報告1枚）> <Googleから書き出した給与報告フォーム.xlsx> <出力.xlsx>
+  python3 scripts/dev/build-report-template.py <元のひな形.xlsx（給与報告1枚）> <実際の月の給与報告フォーム.xlsx> <出力.xlsx>
 
 - 給与報告シート（sheet1.xml）・画像・書式はそのまま。足すシートの書式は styles.xml の後ろに付け足す。
+- 足すシートは、実際に使っている月のファイル（例：261110給与報告フォーム.xlsx）から取る。入力はすべて消す。
 - 経費精算の合計式は6行目から数えるように直す（元は7行目からで、1行目の金額が合計に入っていなかった）。
-- 見本の入力（たばこ購入 など）は消す。旅費精算は1ページに収まるよう縦向き・1ページに縮小。
+- 旅費精算の差引支払額は「精算額−仮払金」にする。印鑑の画像は入れない（公開の場所に置かないため）。
 """
 import copy
 import io
@@ -30,33 +31,50 @@ def clean_form(path: str) -> bytes:
     for n in list(wb.sheetnames):
         if n not in ('現金経費精算', '旅費精算'):
             del wb[n]
+    for ws in wb.worksheets:
+        ws._images = []  # 印鑑などの画像は入れない
+        ws._charts = []
     ex = wb['現金経費精算']
-    for row in ex.iter_rows(min_row=6, max_row=27, max_col=14):
+    if ex.max_row > 36:
+        ex.delete_rows(37, ex.max_row - 36)
+    for row in ex.iter_rows(min_row=6, max_row=29, max_col=14):
         for c in row:
             c.value = None
     ex['A1'] = '令和　年度'
     ex['D1'] = None
     for col in 'DEFGHIJKL':
-        ex[f'{col}28'] = f'=SUM({col}6:{col}27)'
-    ex['N28'] = '=SUM(N6:N27)'
-    ex['K30'] = '=SUM(D28:L28,N28)'
+        ex[f'{col}30'] = f'=SUM({col}6:{col}29)'
+    ex['N30'] = '=SUM(N6:N29)'
+    ex['K32'] = '=SUM(D30:L30,N30)'
+    ex['B32'] = '月　　　　　　日'
+    ex['B33'] = '　□銀行振込　　　　□現金　　　　氏名'
+    ex.print_area = 'A1:N33'
     tr = wb['旅費精算']
     if tr.max_row > 56:
         tr.delete_rows(57, tr.max_row - 56)
+    for ref in ['AB2', 'AE2', 'AH2', 'H11', 'Y11', 'H12', 'AE50', 'AE51', 'AE52', 'AE53']:
+        tr[ref] = None
+    for r in range(15, 23):
+        for col in ['B', 'F', 'I', 'Q']:
+            tr[f'{col}{r}'] = None
+    for r in range(26, 30):
+        for col in ['B', 'I', 'M', 'O', 'S', 'Z', 'AD', 'AF']:
+            tr[f'{col}{r}'] = None
+    for r in range(33, 49):
+        for col in ['B', 'F', 'L', 'AF']:
+            tr[f'{col}{r}'] = None
+    tr['B26'] = '出張日当'
+    tr['B27'] = '※旅費規程10条'
+    tr['S26'] = '宿泊日当'
+    tr['S27'] = '※旅費規程10条'
     tr['O26'] = '=I26*M26'
     tr['AF26'] = '=Z26*AD26'
-    tr['O30'] = '=SUM(O26:O29)'
-    tr['AF30'] = '=SUM(AF26:AF29)'
+    tr['O30'] = '=SUM(O26:R29)'
+    tr['AF30'] = '=SUM(AF26:AI29)'
     tr['AE50'] = '=O30+AF30'
-    tr['AE51'] = '=SUM(AF33:AF48)'
+    tr['AE51'] = '=SUM(AF33:AI48)'
     tr['AE53'] = '=AE50+AE51-AE52'
-    tr.page_setup.orientation = 'portrait'
-    tr.page_setup.paperSize = 9
-    tr.sheet_properties.pageSetUpPr.fitToPage = True
-    tr.page_setup.fitToWidth = 1
-    tr.page_setup.fitToHeight = 1
     tr.print_area = 'A1:AJ54'
-    ex.print_area = 'A1:N31'
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()

@@ -16,8 +16,8 @@ import { createApiKey, revokeApiKey, isScope } from '@/lib/apikeys';
 import { autoDraft, undoAutoDraft, saveForecastParams } from '@/lib/forecast-data';
 import { readParams, type Window as DraftWindow, type DraftDay } from '@/lib/forecast';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
-import { cleanFooter, cleanItem, cleanTrip } from '@/lib/expenses';
-import { addItem, deleteItem, deleteTrip, rotateExpenseSecret, saveFooter, saveTrip, updateItem } from '@/lib/expenses-data';
+import { cleanFooter, cleanItem, cleanTravel, isYm } from '@/lib/expenses';
+import { addItem, deleteItem, deleteTravel, rotateExpenseSecret, saveFooter, saveTravel, updateItem } from '@/lib/expenses-data';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 const KINDS: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
@@ -508,18 +508,18 @@ export async function saveExpenseFooterAction(input: unknown): Promise<Result> {
   revalidatePath('/manage/expenses');
   return { ok: true, message: '保存しました' };
 }
-export async function saveTripAction(id: number | null, input: unknown): Promise<{ ok: true; message: string; id: number } | { ok: false; error: string }> {
+export async function saveTravelAction(input: unknown): Promise<Result> {
   const u = await requireAdmin();
-  const c = cleanTrip(obj(input));
+  const c = cleanTravel(obj(input));
   if (!c.ok) return c;
-  const r = await saveTrip(u.id, id ? Number(id) : null, c.value);
-  if ('error' in r) return { ok: false, error: r.error };
+  await saveTravel(u.id, c.value);
   revalidatePath('/manage/expenses');
-  return { ok: true, message: '保存しました', id: r.id };
+  return { ok: true, message: '保存しました' };
 }
-export async function deleteTripAction(id: number): Promise<Result> {
+export async function deleteTravelAction(ym: string): Promise<Result> {
   const u = await requireAdmin();
-  if (!(await deleteTrip(u.id, Number(id)))) return { ok: false, error: 'その旅費精算書は見つかりませんでした（消された可能性があります）' };
+  if (!isYm(ym)) return { ok: false, error: '何月分かが正しくありません' };
+  if (!(await deleteTravel(u.id, ym))) return { ok: false, error: 'この月の旅費精算書は見つかりませんでした' };
   revalidatePath('/manage/expenses');
   return { ok: true, message: '消しました' };
 }
@@ -528,5 +528,5 @@ export async function rotateExpenseSecretAction(): Promise<Result> {
   await rotateExpenseSecret();
   await audit(u.id, 'expense_secret_rotated', {});
   revalidatePath('/manage/expenses');
-  return { ok: true, message: '合言葉を作り直しました。スプレッドシートのスクリプトを貼り替えてください' };
+  return { ok: true, message: '合言葉を作り直しました。Apps Script のスクリプトを貼り替えてください' };
 }

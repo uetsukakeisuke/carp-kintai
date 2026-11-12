@@ -3,6 +3,7 @@ import { reportData } from '@/lib/report';
 import { reportGross } from '@/lib/calc';
 import { jstParts, yen, dateLabel } from '@/lib/time';
 import { sql } from '@/lib/db';
+import { formNames } from '@/lib/expenses';
 
 export default async function ReportPage({ searchParams }: { searchParams: Promise<{ ym?: string }> }) {
   const sp = await searchParams;
@@ -39,7 +40,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
           <div><span>行数</span><b>{rows.length}行</b></div>
           <div><span>総支給額の見込み</span><b>{yen(total)}</b></div>
         </div>
-        {rows.length ? <a className="btn primary" href={`/api/report?ym=${ym}`}>給与報告フォーム（Excel）を出力</a> : <span className="btn" aria-disabled="true">この月の勤務実績はまだありません</span>}
+        {rows.length ? <a className="btn primary" href={`/api/report?ym=${ym}`}>{formNames(ym, header.payD).file} を出力</a> : <span className="btn" aria-disabled="true">この月の勤務実績はまだありません</span>}
       </div>
       {hist.length > 0 && (
         <section className="card" style={{ marginBottom: 14 }}>
@@ -51,7 +52,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
               return (
                 <div key={h.ym} className={`mrow${h.ym === ym ? ' on' : ''}`}>
                   <Link href={`/manage/report?ym=${h.ym}`}><b>{hy}年{hmm}月分</b><span className="sub">{hmm === 12 ? 1 : hmm + 1}月{header.payD}日支給 ・ {h.n}人</span></Link>
-                  <a className="btn" href={`/api/report?ym=${h.ym}`} download>Excel</a>
+                  <a className="btn" href={`/api/report?ym=${h.ym}`} download>{formNames(h.ym, header.payD).yymm}</a>
                 </div>
               );
             })}
