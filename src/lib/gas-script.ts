@@ -2,9 +2,11 @@
 export function gasScript(appUrl: string, secret: string) {
   return `// カープ勤怠：アクトヴィジョンの給与明細メールを自動で取り込む
 // 1時間ごとに Gmail を確認し、まだ取り込んでいない「給与明細」のPDFをアプリに送ります。
+// 旧アドレス（info@carpag.net）から転送された明細も取り込みます。
 const APP_URL = '${appUrl}/api/payslips/import';
 const SECRET = '${secret}';
-const QUERY = 'from:kyuyo@actvision-tax.jp subject:給与明細 has:attachment filename:pdf newer_than:90d -label:勤怠アプリ取込済み';
+// アクトヴィジョンから直接届いたもの＋旧アドレス（info@carpag.net）から転送されたもの
+const QUERY = '(from:kyuyo@actvision-tax.jp OR from:info@carpag.net) subject:給与明細 has:attachment filename:pdf newer_than:90d -label:勤怠アプリ取込済み';
 const DONE_LABEL = '勤怠アプリ取込済み';
 
 function importPayslips() {
