@@ -36,7 +36,7 @@ export const weekdayOf = (d: string) => new Date(ms(d)).getUTCDay();
 
 // ---------- 作業量 ----------
 export type Load = { inLines: number; inSqrt: number; inKg: number; outLines: number; outSqrt: number; outKg: number };
-export type LoadItem = { kind: 'in' | 'out'; part: string; customer: string; qty: number; kg: number; line: number; late: boolean };
+export type LoadItem = { kind: 'in' | 'out'; part: string; customer: string; supplier: string; due: string; qty: number; kg: number; line: number; late: boolean };
 export type DayLoad = Load & { date: string; items: LoadItem[] };
 const emptyLoad = (date: string): DayLoad => ({ date, inLines: 0, inSqrt: 0, inKg: 0, outLines: 0, outSqrt: 0, outKg: 0, items: [] });
 export function addTo(l: Load, kind: 'in' | 'out', qty: number, kg: number) {
@@ -57,11 +57,11 @@ export function dayLoads(rows: OrderRow[], today: string, shipLead: number): Map
     if (r.qtyN <= 0 && r.kg <= 0) continue;
     if (!r.fromStock && !r.received && r.supDue) {
       const late = r.supDue < today;
-      put(late ? today : r.supDue, { kind: 'in', part: r.part, customer: r.customer, qty: r.qtyN, kg: r.kg, line: r.line, late });
+      put(late ? today : r.supDue, { kind: 'in', part: r.part, customer: r.customer, supplier: r.supplier, due: r.supDue, qty: r.qtyN, kg: r.kg, line: r.line, late });
     }
     if (!r.toStock && !r.delivered && r.custDue) {
       const d = shift(r.custDue, -shipLead), late = d < today;
-      put(late ? today : d, { kind: 'out', part: r.part, customer: r.customer, qty: r.qtyN, kg: r.kg, line: r.line, late });
+      put(late ? today : d, { kind: 'out', part: r.part, customer: r.customer, supplier: r.supplier, due: r.custDue, qty: r.qtyN, kg: r.kg, line: r.line, late });
     }
   }
   return m;

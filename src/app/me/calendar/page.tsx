@@ -7,6 +7,8 @@ import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { CorrectionForm } from './CorrectionForm';
 import { TaskList } from '@/components/TaskList';
 import { tasksForStaff, toItem } from '@/lib/tasks';
+import { ledgerBrief } from '@/lib/brief-data';
+import { LedgerBrief } from '@/components/LedgerBrief';
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ ym?: string; d?: string }> }) {
   const u = await requireUser();
@@ -15,7 +17,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ym = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : now.date.slice(0, 7);
   const [y, m] = ym.split('-').map(Number);
   const nd = daysInMonth(y, m), from = ymd(y, m, 1), to = ymd(y, m, nd);
-  const [punches, shifts, reqs, tasks] = await Promise.all([punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }), tasksForStaff(u.id, from, to)]);
+  const [punches, shifts, reqs, tasks, ledger] = await Promise.all([punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }), tasksForStaff(u.id, from, to), ledgerBrief()]);
   const sel = sp.d && sp.d.startsWith(ym) ? sp.d : now.date.startsWith(ym) ? now.date : from;
   const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
@@ -48,6 +50,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ps = punches.filter((p) => p.work_date === sel);
   const s = summarizeDay(ps, { isPast: sel < now.date, now: sel === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
   const myReqs = reqs.filter((r) => r.work_date === sel);
+  // 今日からあとのシフトの日は、受発注の入荷・出荷の予定も出す
+  const showLedger = !!(sh && ledger && sel >= now.date);
 
   return (
     <div className="narrow">
@@ -82,6 +86,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <div className="cdtasks"><div className="sub" style={{ margin: '8px 0 2px' }}>予定表</div>
             <TaskList items={tasks.filter((t) => t.work_date === sel).map(toItem)} canCheck={sel <= now.date && sel >= addDays(now.date, -1)} /></div>
         )}
+        {showLedger && <div className="cdtasks"><LedgerBrief brief={ledger!.byDate.get(sel) ?? null} date={sel} receivedAt={ledger!.at} /></div>}
         {!sh && s.firstIn === null && !tasks.some((t) => t.work_date === sel) && <div className="sub">この日は予定も出勤もありません。</div>}
       </div>
       <p className="sub" style={{ marginTop: 12 }}>シフトと予定表は、Googleカレンダーやスマホのカレンダーにも自動で入れられます → <Link href="/me/settings">設定</Link></p>

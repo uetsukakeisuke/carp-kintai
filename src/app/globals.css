@@ -989,3 +989,21 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .ad-over { margin-top: 8px }
 .ad-over summary { cursor: pointer }
 .ad-over .ad-list { margin-top: 6px }
+/* シフト前のまとめ（予定表＋入荷・出荷） */
+.brief .brief-sec + .brief-sec { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line) }
+.brief .item-h { margin-bottom: 8px }
+.brief-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px }
+.brief-h b { font-size: 14px }
+.lb { display: grid; gap: 8px }
+.lb-h { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 2px }
+.lb-h .fc-k { margin-right: 0 }
+.lb-late { font-size: 12px; font-weight: 700 }
+.lb-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px }
+.lb-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 14px }
+.lb-list li:last-child { border-bottom: 0 }
+.lb-part { min-width: 0; overflow-wrap: anywhere; font-weight: 600 }
+.lb-qty { white-space: nowrap; font-size: 13px }
+.lb-meta { grid-column: 1 / -1; font-size: 12px }
+.lb-more summary { cursor: pointer; padding: 4px 0 }
+.cdtasks .lb { margin-top: 8px }
+
