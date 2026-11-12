@@ -128,9 +128,8 @@ export async function autoDraft(actorId: number, storeId: number, year: number, 
     sql<{ work_date: string; amount: number }[]>`select work_date, amount from daily_budgets where store_id = ${storeId} and work_date between ${start} and ${to}`,
     sql<{ budget_weekday: number; budget_friday: number; budget_weekend: number }[]>`select budget_weekday, budget_friday, budget_weekend from stores where id = ${storeId}`,
   ]);
-  const transport = new Map(staff.map((s) => [s.id, s.transport_per_day]));
   const cost = (id: number, d: string, s: number, e: number) => {
-    const c = planCost({ start: s, end: e }, wageAt(rates.get(id) ?? [], d) ?? 0, transport.get(id) ?? 0);
+    const c = planCost({ start: s, end: e }, wageAt(rates.get(id) ?? [], d) ?? 0);
     return { workMin: c.workMin, total: c.total };
   };
   const budget = (d: string) => {

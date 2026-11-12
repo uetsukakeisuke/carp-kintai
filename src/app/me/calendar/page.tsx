@@ -28,7 +28,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     const sh = shifts.find((s) => s.work_date === k);
     const ps = punches.filter((p) => p.work_date === k);
     const s = summarizeDay(ps, { isPast: k < now.date, now: k === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
-    if (sh) { planDays++; planMin += planCost({ start: sh.start_min, end: sh.end_min }, 0, 0).workMin; }
+    if (sh) { planDays++; planMin += planCost({ start: sh.start_min, end: sh.end_min }, 0).workMin; }
     if (s.firstIn !== null) { workDays++; workMin += s.workMin; }
     let badge = null;
     if (s.state === 'done') badge = <span className="cs ok">出勤済</span>;

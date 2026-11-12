@@ -85,15 +85,16 @@ describe('時給・最低賃金', () => {
 });
 
 describe('人件費', () => {
-  it('予定シフト：6時間超は45分控除、深夜25%', () => {
-    const c = planCost({ start: 18 * 60, end: 23 * 60 }, 1200, 300);
-    expect(c.workMin).toBe(300);
-    expect(c.base).toBe(6000);
-    expect(c.night).toBe(300);
-    expect(c.total).toBe(6600);
+  it('人件費＝時給×実働時間（深夜・残業の割増や交通費は入れない）', () => {
+    const c = planCost({ start: 18 * 60, end: 23 * 60 }, 1200); // 5時間・休憩なし・22時以降を含む
+    expect(c).toEqual({ workMin: 300, breakMin: 0, total: 6000 });
+    const long = planCost({ start: 9 * 60, end: 19 * 60 }, 1180); // 10時間 → 休憩60分 → 実働9時間（8時間超の分も割増なし）
+    expect(long).toEqual({ workMin: 540, breakMin: 60, total: 10620 });
+    expect(planCost({ start: 10 * 60, end: 17 * 60 }, 1150).workMin).toBe(375); // 7時間 → 休憩45分
   });
-  it('時間外は給与報告フォームと同じ丸め', () => {
-    expect(laborCost({ regularMin: 480, overtimeMin: 30, nightMin: 0, hourly: 1180, transport: 0 }).overtime).toBe(738);
+  it('円未満は四捨五入', () => {
+    expect(laborCost(50, 1150)).toBe(958); // 958.33…
+    expect(laborCost(0, 1200)).toBe(0);
   });
 });
 

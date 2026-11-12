@@ -63,7 +63,7 @@ export function ShiftBoard(p: {
 
   const rate = (id: number, date: string) => wageAt(p.rates[id] ?? [], date) ?? 0;
   const budgetOf = (d: number) => { const o = p.budgets.find((b) => b.work_date === key(d)); if (o) return o.amount; const w = wd(d); return w === 0 || w === 6 ? p.store.budget[2] : w === 5 ? p.store.budget[1] : p.store.budget[0]; };
-  const costOf = (st: Staff, d: number, sh: { s: number; e: number }) => planCost({ start: sh.s, end: sh.e }, rate(st.id, key(d)), st.transport);
+  const costOf = (st: Staff, d: number, sh: { s: number; e: number }) => planCost({ start: sh.s, end: sh.e }, rate(st.id, key(d)));
   const get = (id: number, d: number) => shifts[`${id}|${key(d)}`];
   const submittedSet = new Set(p.submitted);
   const mismatch = (id: number, d: number) => { const sh = get(id, d); if (!sh) return false; const h = hopes[`${id}|${key(d)}`]; if (!h) return submittedSet.has(id); return sh.s < h.s || sh.e > h.e; };
@@ -312,7 +312,7 @@ export function ShiftBoard(p: {
           </div>
         </div>
       </>}
-      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間＋深夜割増（22時以降25%）＋1日8時間超の残業割増（25%）＋交通費。6時間超で45分、8時間超で60分の休憩を自動で差し引いています。</p>
+      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。</p>
 
       {ed && (() => {
         const st = p.staff.find((x) => x.id === ed.staffId)!;
@@ -326,7 +326,7 @@ export function ShiftBoard(p: {
           <div className="scrim" onClick={(e) => e.target === e.currentTarget && setEd(null)}>
             <div className="modal" role="dialog" aria-modal="true" aria-labelledby="edT">
               <h3 id="edT">{st.name}　{p.month}/{ed.d}（{WD[wd(ed.d)]}）</h3>
-              <div className="meta">時給 {yen(rate(st.id, key(ed.d)))} ・ 交通費 {yen(st.transport)}/日</div>
+              <div className="meta">時給 {yen(rate(st.id, key(ed.d)))}</div>
               <div className={`hopebox ${h ? 'ok' : 'ng'}`}>{h ? `出勤希望：${hm(h.s)}〜${hm(h.e)}` : submittedSet.has(st.id) ? 'この日は出勤希望がありません' : '希望が未提出です'}</div>
               <div className="pats">
                 {h && <button onClick={() => setEd({ ...ed, s: h.s, e: h.e })}><b>希望どおり</b><span className="num">{hs(h.s)}-{hs(h.e)}</span></button>}
@@ -342,12 +342,9 @@ export function ShiftBoard(p: {
               {outside && <p className="err" style={{ color: 'var(--warn)' }}>出勤希望の日・時間帯から外れています。本人に確認してから確定してください。</p>}
               {r && (
                 <div className="calc">
-                  <span>実働（休憩{r.breakMin}分を控除）</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
-                  <span>基本給</span><span className="r">{yen(r.base)}</span>
-                  {r.night > 0 && <><span>深夜割増</span><span className="r">{yen(r.night)}</span></>}
-                  {r.overtime > 0 && <><span>時間外</span><span className="r">{yen(r.overtime)}</span></>}
-                  <span>交通費</span><span className="r">{yen(r.transport)}</span>
-                  <b>このシフトの人件費</b><b className="r">{yen(r.total)}</b>
+                  <span>{r.breakMin ? `実働（休憩${r.breakMin}分を控除）` : '実働'}</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
+                  <span>時給</span><span className="r">{yen(rate(st.id, key(ed.d)))}</span>
+                  <b>このシフトの人件費（時給×実働）</b><b className="r">{yen(r.total)}</b>
                 </div>
               )}
               <div className={`delta${after > budget || dayAfter > budgetOf(ed.d) ? ' over' : ''}`}>

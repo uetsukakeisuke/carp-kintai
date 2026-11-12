@@ -26,8 +26,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     const sh = shifts.find((x) => x.staff_id === s.id);
     const sum = summarizeDay(ps, { isPast: d < now.date, now: d === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
     const w = wageAt(rates.get(s.id) ?? [], d) ?? 0;
-    const cost = sum.firstIn !== null ? laborCost({ regularMin: sum.regularMin, overtimeMin: sum.overtimeMin, nightMin: sum.nightMin, hourly: w, transport: s.transport_per_day }).total : 0;
-    const plan = sh ? planCost({ start: sh.start_min, end: sh.end_min }, w, s.transport_per_day).total : 0;
+    const cost = sum.firstIn !== null ? laborCost(sum.workMin, w) : 0;
+    const plan = sh ? planCost({ start: sh.start_min, end: sh.end_min }, w).total : 0;
     const flags: [string, string][] = [];
     if (sh && sum.firstIn !== null && sum.firstIn > sh.start_min) flags.push(['late', `遅刻 ${sum.firstIn - sh.start_min}分`]);
     if (sh && sum.lastOut !== null && sum.lastOut < sh.end_min - 5) flags.push(['early', `早退 ${sh.end_min - sum.lastOut}分`]);

@@ -134,30 +134,18 @@ export function minWageAt(list: MinWage[], date: string): number {
   return w;
 }
 
-/** 給与報告フォームと同じ丸めで人件費を計算（基本給・時間外・深夜・交通費） */
-export function laborCost(p: { regularMin: number; overtimeMin: number; nightMin: number; hourly: number; transport: number }) {
-  const base = Math.round((p.regularMin / 60) * p.hourly);
-  const overtime = Math.round(Math.round(p.hourly * 1.25 * 1000) / 1000 * (p.overtimeMin / 60));
-  const night = Math.round(p.hourly * 0.25 * (p.nightMin / 60));
-  const total = base + overtime + night + p.transport;
-  return { base, overtime, night, transport: p.transport, total };
+/** 人件費＝時給×実働時間（休憩を除いた時間）。深夜・残業の割増や交通費は入れない。円未満は四捨五入。
+ *  （給与の支給額は給与報告フォームの計算式で別に計算する） */
+export function laborCost(workMin: number, hourly: number) {
+  return Math.round((Math.max(0, workMin) / 60) * hourly);
 }
 
-/** シフト予定 1 件の人件費（休憩を自動控除） */
-export function planCost(shift: { start: number; end: number }, hourly: number, transport: number) {
+/** シフト予定 1 件の実働と人件費（休憩を自動控除：6時間超で45分、8時間超で60分） */
+export function planCost(shift: { start: number; end: number }, hourly: number) {
   const dur = shift.end - shift.start;
-  const work = Math.max(0, dur - autoBreak(dur));
-  return {
-    workMin: work,
-    breakMin: autoBreak(dur),
-    ...laborCost({
-      regularMin: Math.min(work, DAILY_LIMIT),
-      overtimeMin: Math.max(0, work - DAILY_LIMIT),
-      nightMin: overlap(shift.start, shift.end, NIGHT_START, NIGHT_END),
-      hourly,
-      transport,
-    }),
-  };
+  const breakMin = autoBreak(dur);
+  const workMin = Math.max(0, dur - breakMin);
+  return { workMin, breakMin, total: laborCost(workMin, hourly) };
 }
 
 export interface ReportRow {
