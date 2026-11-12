@@ -977,3 +977,8 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
   .fc-days { display: block; columns: 2; column-gap: 28px }
   .fc-days > .fc-day { break-inside: avoid }
 }
+/* 時給の変更 */
+.wage-from { display: grid; gap: 6px; min-width: 0 }
+.wage-from .chips { flex-wrap: wrap }
+.wage-note { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; line-height: 1.6 }
+.wage-note.past { background: var(--warn-soft) }

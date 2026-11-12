@@ -100,7 +100,7 @@ describe('人件費', () => {
 
 describe('給与報告の行', () => {
   const staff = [{ id: 1, name: '佐藤 美咲', store: 'お酒の水族館', employment: 'ﾊﾟｰﾄ', transport: 300, commuteMeans: '電車', rates: [{ effective_from: '2026-01-01', hourly: 1150 }, { effective_from: '2026-11-16', hourly: 1180 }] }];
-  it('月の途中で時給が変わると行が分かれ、交通費は最初の行だけ', () => {
+  it('月の途中で時給が変わると行が分かれ、通勤手当の日額はどの行にも入る（日額×その行の日数）', () => {
     const days = [
       { staffId: 1, date: '2026-11-10', punches: [P('in', '10:00'), P('out', '15:00')] },
       { staffId: 1, date: '2026-11-20', punches: [P('in', '10:00'), P('out', '19:30'), ] },
@@ -109,10 +109,10 @@ describe('給与報告の行', () => {
     const { rows, warnings } = buildReportRows({ staff, days });
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ hourly: 1150, days: 1, regularMin: 300, transport: 300, commuteMeans: '電車' });
-    expect(rows[1]).toMatchObject({ hourly: 1180, days: 1, regularMin: 480, overtimeMin: 90, transport: 0 });
+    expect(rows[1]).toMatchObject({ hourly: 1180, days: 1, regularMin: 480, overtimeMin: 90, transport: 300, commuteMeans: '電車' });
     expect(warnings).toEqual([{ staffId: 1, name: '佐藤 美咲', date: '2026-11-21' }]);
     expect(reportGross(rows[0])).toBe(5750 + 300);
-    expect(reportGross(rows[1])).toBe(9440 + Math.round(1475 * 1.5));
+    expect(reportGross(rows[1])).toBe(9440 + Math.round(1475 * 1.5) + 300);
   });
 });
 

@@ -8,12 +8,13 @@ import { call } from '@/lib/call';
 
 type S = {
   id: number; name: string; kana: string; role: 'staff' | 'manager' | 'admin'; employment: string; payType: string; storeId: number | null;
-  transport: number; commuteMeans: string; active: boolean; mustChange: boolean; locked: boolean; wage: number | null;
+  transport: number; commuteMeans: string; active: boolean; mustChange: boolean; locked: boolean; wage: number | null; since: string | null;
   future: { effective_from: string; hourly: number }[]; history: { effective_from: string; hourly: number }[]; belowNow: boolean; belowNext: boolean;
 };
 const yen = (n: number | null) => (n === null ? '—' : '¥' + n.toLocaleString('ja-JP'));
 const ROLE = { staff: 'スタッフ', manager: '店長', admin: '管理者' };
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
+const nextMonth1 = (d: string) => { const y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
 
 export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }: {
   staff: S[]; stores: { id: number; name: string }[]; minWage: { now: number; next: { effective_from: string; hourly: number } | null }; today: string; isAdmin: boolean; showAll: boolean;
@@ -59,7 +60,7 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
               <td className="head"><b>{s.name}</b>{!s.active && <span className="flag">退職</span>}<span className="sub" style={{ marginLeft: 8 }}>{s.employment}</span></td>
               <td data-label="所属"><span>{storeName(s.storeId)}<span className="sub sp-only" style={{ marginLeft: 6 }}>（{ROLE[s.role]}）</span></span></td>
               <td data-label="権限" className="hide-sp">{ROLE[s.role]}</td>
-              <td data-label="時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
+              <td data-label="時給" className="num">{s.payType === 'monthly' ? '月給' : yen(s.wage)}{s.payType !== 'monthly' && s.since && <small className="sub" style={{ marginLeft: 4 }}>{md(s.since)}〜</small>}{s.belowNow && <span className="flag f-late">最低賃金未満</span>}</td>
               <td data-label="改定" className={`num${s.future.length || s.belowNext ? '' : ' hide-sp'}`}>{s.future.map((f) => `${md(f.effective_from)}〜${yen(f.hourly)}`).join('、') || '—'}{s.belowNext && !s.belowNow && <span className="flag f-late">{minWage.next && md(minWage.next.effective_from)}以降 最低賃金未満</span>}</td>
               <td data-label="交通費" className={`num${s.transport ? '' : ' hide-sp'}`}>{yen(s.transport)}</td>
               <td data-label="ログイン" className={s.role === 'staff' ? 'hide-sp' : ''}>{s.role === 'staff' ? <span className="sub">名前だけ</span> : s.locked ? <span className="stt s-missing">ロック中</span> : s.mustChange ? <span className="stt">初期（1111）</span> : <span className="stt s-done">パスワード設定済み</span>}</td>
@@ -77,12 +78,26 @@ export function StaffManager({ staff, stores, minWage, today, isAdmin, showAll }
         <div className="scrim" onClick={(e) => e.target === e.currentTarget && setWage(null)}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="wt">
             <h3 id="wt">{wage.s.name} の時給</h3>
-            <p className="meta">現在 {yen(wage.s.wage)}</p>
+            <p className="meta">いま {yen(wage.s.wage)}{wage.s.since ? `（${md(wage.s.since)}から）` : ''}</p>
             <div className="formgrid">
               <label htmlFor="wh">新しい時給（円）</label><input id="wh" className="in num" type="number" inputMode="numeric" min={0} step={10} value={wage.hourly} onChange={(e) => setWage({ ...wage, hourly: Math.round(Number(e.target.value) || 0) })} />
-              <label htmlFor="wf">適用開始日</label><input id="wf" className="in" type="date" value={wage.from} onChange={(e) => setWage({ ...wage, from: e.target.value })} />
+              <label htmlFor="wf">いつの勤務から</label>
+              <div className="wage-from">
+                <div className="chips">
+                  {[{ d: `${today.slice(0, 8)}01`, t: `今月1日（${md(`${today.slice(0, 8)}01`)}）から` }, { d: today, t: '今日から' }, { d: nextMonth1(today), t: `来月1日（${md(nextMonth1(today))}）から` }].map((o) => (
+                    <button key={o.t} type="button" className={`btn sm${wage.from === o.d ? ' primary' : ''}`} onClick={() => setWage({ ...wage, from: o.d })}>{o.t}</button>
+                  ))}
+                </div>
+                <input id="wf" className="in" type="date" value={wage.from} onChange={(e) => setWage({ ...wage, from: e.target.value })} />
+              </div>
             </div>
-            {wage.s.history.length > 0 && <p className="sub">履歴：{wage.s.history.map((h) => `${h.effective_from} から ${yen(h.hourly)}`).join(' ／ ')}</p>}
+            <p className={`wage-note${wage.from && wage.from <= today ? ' past' : ''}`}>
+              {!wage.from ? '日付を選んでください。'
+                : wage.from <= today
+                  ? <>{md(wage.from)}以降の勤務は、<b>すでに打刻した分も</b>新しい時給 {yen(wage.hourly)} で計算し直します（シフトの人件費・{Number(wage.from.slice(5, 7))}月分の給与報告フォームにも反映）。それより前の勤務は元の時給のままです。</>
+                  : <>{md(wage.from)}の勤務から新しい時給 {yen(wage.hourly)} になります。それまでは今の時給 {yen(wage.s.wage)} のままです。</>}
+            </p>
+            {wage.s.history.length > 0 && <p className="sub">これまで：{wage.s.history.map((h) => `${md(h.effective_from)}〜${yen(h.hourly)}`).join(' → ')}</p>}
             {err && <p className="err">{err}</p>}
             <div className="actions"><button className="btn" onClick={() => setWage(null)}>キャンセル</button>
               <button className="btn primary" disabled={pending} onClick={() => run(() => addWageAction(wage.s.id, wage.from, wage.hourly), () => setWage(null))}>保存する</button></div>

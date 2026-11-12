@@ -22,11 +22,12 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         const r = rates.get(s.id) ?? [];
         const cur = wageAt(r, today);
         const fut = r.filter((x) => x.effective_from > today);
+        const since = [...r].filter((x) => x.effective_from <= today).pop()?.effective_from ?? null;
         const atNext = next ? wageAt(r, next.effective_from) : cur;
         return {
           id: s.id, name: s.name, kana: s.kana ?? '', role: s.role, employment: s.employment, payType: s.pay_type, storeId: s.store_id,
           transport: s.transport_per_day, commuteMeans: s.commute_means ?? '', active: s.active, mustChange: s.pin_must_change,
-          locked: !!s.locked_until && s.locked_until > new Date(), wage: cur, future: fut, history: r,
+          locked: !!s.locked_until && s.locked_until > new Date(), wage: cur, since, future: fut, history: r,
           belowNow: s.pay_type === 'hourly' && cur !== null && cur < minWageAt(mw, today),
           belowNext: s.pay_type === 'hourly' && !!next && atNext !== null && atNext < next.hourly,
         };

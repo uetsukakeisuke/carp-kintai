@@ -62,6 +62,13 @@ export function ShiftBoard(p: {
   const days = Array.from({ length: nd }, (_, i) => i + 1);
 
   const rate = (id: number, date: string) => wageAt(p.rates[id] ?? [], date) ?? 0;
+  /** 月の途中で時給が変わる人は「¥1,300→¥1,350（12日〜）」と出す */
+  const wageLabel = (id: number) => {
+    const first = rate(id, key(1)), last = rate(id, key(nd));
+    if (first === last) return yen(first);
+    const change = (p.rates[id] ?? []).find((r) => r.effective_from > key(1) && r.effective_from <= key(nd));
+    return `${yen(first)}→${yen(last)}${change ? `（${Number(change.effective_from.slice(8, 10))}日〜）` : ''}`;
+  };
   const budgetOf = (d: number) => { const o = p.budgets.find((b) => b.work_date === key(d)); if (o) return o.amount; const w = wd(d); return w === 0 || w === 6 ? p.store.budget[2] : w === 5 ? p.store.budget[1] : p.store.budget[0]; };
   const costOf = (st: Staff, d: number, sh: { s: number; e: number }) => planCost({ start: sh.s, end: sh.e }, rate(st.id, key(d)));
   const get = (id: number, d: number) => shifts[`${id}|${key(d)}`];
@@ -289,7 +296,7 @@ export function ShiftBoard(p: {
               <tbody>
                 {p.staff.map((st) => (
                   <tr key={st.id}>
-                    <th className="sc staffc"><b>{st.name}</b><small>{st.monthly ? '月給' : yen(rate(st.id, key(1)))}{!submittedSet.has(st.id) && !st.monthly && <span style={{ color: 'var(--bad)' }}> ・ 希望未提出</span>}</small></th>
+                    <th className="sc staffc"><b>{st.name}</b><small>{st.monthly ? '月給' : wageLabel(st.id)}{!submittedSet.has(st.id) && !st.monthly && <span style={{ color: 'var(--bad)' }}> ・ 希望未提出</span>}</small></th>
                     {days.map((d) => {
                       const sh = get(st.id, d), h = hopes[`${st.id}|${key(d)}`];
                       return (

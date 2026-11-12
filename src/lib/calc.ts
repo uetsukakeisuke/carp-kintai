@@ -152,6 +152,8 @@ export interface ReportRow {
   store: string; name: string; employment: string; days: number;
   regularMin: number; overtimeMin: number; hourly: number; nightPay: number;
   commuteMeans: string | null; transport: number;
+  /** その時給で働いた最初と最後の日（月の途中で時給が変わった人の行を見分ける） */
+  firstDate?: string; lastDate?: string;
 }
 
 /**
@@ -165,27 +167,28 @@ export function buildReportRows(input: {
   const rows: ReportRow[] = [];
   const warnings: { staffId: number; name: string; date: string }[] = [];
   for (const st of input.staff) {
-    const groups = new Map<number, { days: number; reg: number; ot: number; night: number }>();
+    const groups = new Map<number, { days: number; reg: number; ot: number; night: number; first: string; last: string }>();
     for (const d of input.days.filter((x) => x.staffId === st.id).sort((a, b) => a.date.localeCompare(b.date))) {
       if (!d.punches.some((p) => p.kind === 'in')) continue;
       const s = summarizeDay(d.punches, { isPast: true });
       if (!s.complete) { warnings.push({ staffId: st.id, name: st.name, date: d.date }); continue; }
       const w = wageAt(st.rates, d.date);
       if (w === null) { warnings.push({ staffId: st.id, name: st.name, date: d.date }); continue; }
-      const g = groups.get(w) ?? { days: 0, reg: 0, ot: 0, night: 0 };
+      const g = groups.get(w) ?? { days: 0, reg: 0, ot: 0, night: 0, first: d.date, last: d.date };
+      g.last = d.date;
       g.days++; g.reg += s.regularMin; g.ot += s.overtimeMin; g.night += s.nightMin;
       groups.set(w, g);
     }
-    let first = true;
+    // 通勤手当はフォームの式で「日額×その行の出勤日数」になるので、時給ごとに分けたどの行にも日額を入れる
     for (const [hourly, g] of groups) {
       rows.push({
         store: st.store, name: st.name, employment: st.employment, days: g.days,
         regularMin: g.reg, overtimeMin: g.ot, hourly,
         nightPay: Math.round(hourly * 0.25 * (g.night / 60)),
-        commuteMeans: first && st.transport ? st.commuteMeans ?? '電車' : null,
-        transport: first ? st.transport : 0,
+        commuteMeans: st.transport ? st.commuteMeans ?? '電車' : null,
+        transport: st.transport,
+        ...(groups.size > 1 ? { firstDate: g.first, lastDate: g.last } : {}),
       });
-      first = false;
     }
   }
   return { rows, warnings };
