@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createHash, randomBytes } from 'node:crypto';
@@ -92,14 +93,20 @@ export async function logout() {
   jar.delete(USER_COOKIE);
 }
 
-export async function currentUser(): Promise<User | null> {
-  const t = (await cookies()).get(USER_COOKIE)?.value;
-  if (!t) return null;
+// 1回の表示の中では、ログイン中の人の確認を1回だけにする（画面の枠とページの両方が確かめるため）。
+// ログインの合言葉（クッキー）ごとに覚えるので、ログイン・ログアウトで変わればその場で聞き直す
+const userByToken = cache(async (tokenHash: string): Promise<User | null> => {
   const [u] = await sql<User[]>`
     select s.id, s.name, s.role, s.store_id, s.pin_must_change
     from sessions x join staff s on s.id = x.staff_id
-    where x.token_hash = ${hash(t)} and x.kind = 'user' and x.expires_at > now() and s.active`;
+    where x.token_hash = ${tokenHash} and x.kind = 'user' and x.expires_at > now() and s.active`;
   return u ?? null;
+});
+
+export async function currentUser(): Promise<User | null> {
+  const t = (await cookies()).get(USER_COOKIE)?.value;
+  if (!t) return null;
+  return userByToken(hash(t));
 }
 
 /** ログイン必須。初回パスワード変更が済んでいなければ変更画面へ */
