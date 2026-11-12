@@ -40,8 +40,8 @@ export function TaskLine({ t, canCheck, onToggle, busy, children }: {
   );
 }
 
-/** スタッフ向け：全体＋自分の作業。チェックすると済になる */
-export function TaskList({ items, canCheck, empty }: { items: TaskItem[]; canCheck: boolean; empty?: string }) {
+/** スタッフ向け：全体＋自分の作業。チェックすると済になる。meId を渡すと、ほかの人の作業も名前ごとに（見るだけで）出す */
+export function TaskList({ items, canCheck, empty, meId }: { items: TaskItem[]; canCheck: boolean; empty?: string; meId?: number }) {
   const [list, setList] = useState(items);
   useEffect(() => setList(items), [items]);
   const [pending, start] = useTransition();
@@ -59,11 +59,18 @@ export function TaskList({ items, canCheck, empty }: { items: TaskItem[]; canChe
     });
   };
   if (!list.length) return empty ? <p className="sub" style={{ margin: 0 }}>{empty}</p> : null;
-  const all = list.filter((t) => t.staffId === null), mine = list.filter((t) => t.staffId !== null);
+  const all = list.filter((t) => t.staffId === null);
+  const mine = list.filter((t) => t.staffId !== null && (meId === undefined || t.staffId === meId));
+  const others = meId === undefined ? [] : list.filter((t) => t.staffId !== null && t.staffId !== meId);
+  const who = (t: TaskItem) => t.staffName ?? '（退職した人）';
+  const names = [...new Set(others.map(who))];
   return (
     <>
       {all.length > 0 && <><div className="tk-h">全体</div><ul className="tks">{all.map((t) => <TaskLine key={t.id} t={t} canCheck={canCheck} busy={pending && busy === t.id} onToggle={(d) => toggle(t, d)} />)}</ul></>}
       {mine.length > 0 && <><div className="tk-h">あなたの作業</div><ul className="tks">{mine.map((t) => <TaskLine key={t.id} t={t} canCheck={canCheck} busy={pending && busy === t.id} onToggle={(d) => toggle(t, d)} />)}</ul></>}
+      {names.map((n) => (
+        <div key={n}><div className="tk-h">{n}さんの作業</div><ul className="tks">{others.filter((t) => who(t) === n).map((t) => <TaskLine key={t.id} t={t} canCheck={false} />)}</ul></div>
+      ))}
       {node}
     </>
   );

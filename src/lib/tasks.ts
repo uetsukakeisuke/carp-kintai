@@ -53,6 +53,13 @@ export async function tasksForStaff(staffId: number, from: string, to = from) {
     where t.store_id = ${store} and t.work_date between ${from} and ${to}
     and (t.staff_id is null or t.staff_id = ${staffId}) order by t.work_date, t.staff_id nulls first, t.at_min nulls last, t.id`;
 }
+/** スタッフのカレンダー用：その店舗の予定表をすべて（全体・自分・ほかの人の作業）。その日に何があるかを全員が見られるように */
+export async function tasksOfStore(storeId: number, from: string, to = from) {
+  return sql<DayTask[]>`select t.id, t.store_id, t.work_date, t.staff_id, t.kind, t.title, t.note, t.at_min, t.first_date, t.done_at, t.done_by, d.name as done_by_name, s.name as staff_name
+    from day_tasks t left join staff d on d.id = t.done_by left join staff s on s.id = t.staff_id
+    where t.store_id = ${storeId} and t.work_date between ${from} and ${to}
+    order by t.work_date, t.staff_id nulls first, t.at_min nulls last, t.id`;
+}
 /** 日ごとの件数（週の帯に出す） */
 export async function taskCounts(storeId: number, from: string, to: string) {
   return sql<{ work_date: string; n: number; open: number }[]>`select work_date, count(*)::int as n,

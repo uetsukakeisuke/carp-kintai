@@ -6,7 +6,8 @@ import { jstParts, daysInMonth, ymd, weekday, WD, hm, hshort, dateLabel, hoursLa
 import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { CorrectionForm } from './CorrectionForm';
 import { TaskList } from '@/components/TaskList';
-import { tasksForStaff, toItem } from '@/lib/tasks';
+import { tasksOfStore, storeOf, toItem } from '@/lib/tasks';
+import { sql } from '@/lib/db';
 import { ledgerBrief } from '@/lib/brief-data';
 import { LedgerBrief } from '@/components/LedgerBrief';
 
@@ -17,8 +18,19 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ym = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : now.date.slice(0, 7);
   const [y, m] = ym.split('-').map(Number);
   const nd = daysInMonth(y, m), from = ymd(y, m, 1), to = ymd(y, m, nd);
-  const [punches, shifts, reqs, tasks, ledger] = await Promise.all([punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }), tasksForStaff(u.id, from, to), ledgerBrief()]);
   const sel = sp.d && sp.d.startsWith(ym) ? sp.d : now.date.startsWith(ym) ? now.date : from;
+  const storeId = await storeOf(u.id);
+  const [punches, shifts, reqs, tasks, ledger, crew] = await Promise.all([
+    punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }),
+    storeId ? tasksOfStore(storeId, from, to) : Promise.resolve([]), ledgerBrief(),
+    // 選んだ日に出勤する人（みんなのシフトと同じ内容。時給などは出さない）
+    storeId ? sql<{ staff_id: number; name: string; start_min: number; end_min: number }[]>`
+      select p.staff_id, s.name, p.start_min, p.end_min from published_shifts p join staff s on s.id = p.staff_id
+      where p.store_id = ${storeId} and p.work_date = ${sel} order by p.start_min, p.end_min, s.sort, s.id` : Promise.resolve([]),
+  ]);
+  // 予定表は「全体 → 自分 → ほかの人」の順に並べる（カレンダーのマスには先頭の1件を出す）
+  const rank = (t: { staff_id: number | null }) => (t.staff_id === null ? 0 : t.staff_id === u.id ? 1 : 2);
+  const dayTasks = (k: string) => tasks.filter((t) => t.work_date === k).sort((a, b) => rank(a) - rank(b));
   const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
 
@@ -41,7 +53,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <Link key={k} className={cls} href={`/me/calendar?ym=${ym}&d=${k}`} scroll={false} aria-label={`${m}月${d}日${sh ? ' シフトあり' : ''}`}>
         <span className="cn">{d}</span>
         {sh && <span className="csh">{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
-        {tasks.some((t) => t.work_date === k) && <span className="ctk">予定{tasks.filter((t) => t.work_date === k).length}</span>}
+        {(() => { const dt = dayTasks(k); return dt.length > 0 && <span className="ctk" title={dt.map((t) => t.title).join('\n')}><span className="ctk-n">予定{dt.length}</span><span className="ctk-t">{dt[0].title}</span>{dt.length > 1 && <span className="ctk-more">ほか{dt.length - 1}件</span>}</span>; })()}
         {badge}
       </Link>,
     );
@@ -50,8 +62,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ps = punches.filter((p) => p.work_date === sel);
   const s = summarizeDay(ps, { isPast: sel < now.date, now: sel === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
   const myReqs = reqs.filter((r) => r.work_date === sel);
-  // 今日からあとのシフトの日は、受発注の入荷・出荷の予定も出す
-  const showLedger = !!(sh && ledger && sel >= now.date);
+  // 今日からあとの日は、受発注の入荷・出荷の予定も出す
+  const showLedger = !!(ledger && sel >= now.date);
+  const selTasks = dayTasks(sel);
 
   return (
     <div className="narrow">
@@ -82,12 +95,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <CorrectionForm date={sel} current={(['in', 'break_start', 'break_end', 'out'] as PunchKind[]).map((k) => ({ kind: k, minute: ps.find((p) => p.kind === k)?.minute ?? null }))}
             suggested={s.state === 'missing' ? 'out' : s.state === 'absent' ? 'in' : 'in'} planStart={sh?.start_min ?? null} planEnd={sh?.end_min ?? null} />
         )}
-        {tasks.some((t) => t.work_date === sel) && (
-          <div className="cdtasks"><div className="sub" style={{ margin: '8px 0 2px' }}>予定表</div>
-            <TaskList items={tasks.filter((t) => t.work_date === sel).map(toItem)} canCheck={sel <= now.date && sel >= addDays(now.date, -1)} /></div>
-        )}
-        {showLedger && <div className="cdtasks"><LedgerBrief brief={ledger!.byDate.get(sel) ?? null} date={sel} receivedAt={ledger!.at} /></div>}
-        {!sh && s.firstIn === null && !tasks.some((t) => t.work_date === sel) && <div className="sub">この日は予定も出勤もありません。</div>}
+        <div className="cdday">
+          <div className="brief-h"><b>この日の予定</b></div>
+          <div className="cdsec">
+            <div className="cdsec-h">予定表</div>
+            <TaskList key={sel} items={selTasks.map(toItem)} meId={u.id} canCheck={sel <= now.date && sel >= addDays(now.date, -1)} empty="予定表に書かれた予定はありません。" />
+          </div>
+          <div className="cdsec">
+            <div className="cdsec-h">出勤する人</div>
+            {crew.length
+              ? <div className="cdcrew">{crew.map((c) => <span key={c.staff_id} className={`nchip${c.staff_id === u.id ? ' me' : ''}`}><b>{c.name}</b> <span className="num">{hm(c.start_min)}〜{hm(c.end_min)}</span></span>)}</div>
+              : <p className="sub" style={{ margin: 0 }}>公開されたシフトはまだありません。</p>}
+          </div>
+          {showLedger && <div className="cdsec"><LedgerBrief brief={ledger!.byDate.get(sel) ?? null} date={sel} receivedAt={ledger!.at} /></div>}
+        </div>
       </div>
       <p className="sub" style={{ marginTop: 12 }}>シフトと予定表は、Googleカレンダーやスマホのカレンダーにも自動で入れられます → <Link href="/me/settings">設定</Link></p>
     </div>
