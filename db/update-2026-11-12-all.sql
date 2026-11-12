@@ -1,4 +1,4 @@
--- 2026/11/12 まとめて実行用（給与明細・顔・受発注・予定表・カレンダー・予測・APIキー）。何回実行しても同じ結果
+-- 2026/11/12 まとめて実行用。何回実行しても同じ結果
 set lock_timeout = '10s';
 create table if not exists payslip_imports (
   id          serial primary key,
@@ -31,7 +31,8 @@ create table if not exists payslips (
   updated_at  timestamptz not null default now(),
   unique (slip_name, work_year, work_month)
 );
-create index if not exists payslips_staff_idx on payslips(staff_id, work_year, work_month);
+create index if not exists payslips_staff_idx
+  on payslips(staff_id, work_year, work_month);
 alter table staff add column if not exists payroll_code text;
 alter table staff add column if not exists slip_pin_hash text;
 alter table staff add column if not exists slip_failed int not null default 0;
@@ -78,10 +79,13 @@ create table if not exists day_tasks (
   updated_at  timestamptz not null default now()
 );
 create index if not exists day_tasks_day_idx on day_tasks(store_id, work_date);
-create index if not exists day_tasks_open_idx on day_tasks(store_id, work_date) where done_at is null and kind = 'task';
+create index if not exists day_tasks_open_idx
+  on day_tasks(store_id, work_date)
+  where done_at is null and kind = 'task';
 alter table day_tasks enable row level security;
 alter table staff add column if not exists cal_token text;
-create unique index if not exists staff_cal_token_idx on staff(cal_token) where cal_token is not null;
+create unique index if not exists staff_cal_token_idx
+  on staff(cal_token) where cal_token is not null;
 alter table settings add column if not exists forecast jsonb;
 create table if not exists ledger_events (
   id         serial primary key,
