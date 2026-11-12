@@ -15,7 +15,8 @@ export async function GET(req: Request) {
   const [y, m] = ym.split('-').map(Number);
   const { rows, header } = await reportData(y, m);
   // 経費精算・旅費精算は上塚さん（管理者）が出力したときだけ中身を入れる。店長が出力したときは空の用紙
-  const exp = u.role === 'admin' ? await monthData(ym) : null;
+  // （経費精算の表がまだない・読めないときも、給与報告は出せるようにする）
+  const exp = u.role === 'admin' ? await monthData(ym).catch((e) => { console.error('[report] 経費精算を読めませんでした', e); return null; }) : null;
   const sheets: SheetCells[] = [expenseCells(exp?.month ?? null, exp?.items ?? [], ym), ...(exp?.trips ?? []).map(travelCells)];
   const bytes = await buildReportXlsx(rows, header, sheets);
   await audit(u.id, 'report_export', { ym, rows: rows.length, expenses: exp?.items.length ?? 0, trips: exp?.trips.length ?? 0 });
