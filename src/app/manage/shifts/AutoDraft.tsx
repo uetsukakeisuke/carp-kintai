@@ -62,7 +62,9 @@ export function AutoDraft({ storeId, year, month, names, onAdded, onRemoved, com
               </>
             ) : (
               <>
-                <p className="ad-done"><b>{res.added.length}コマ</b>を下書きに入れました。</p>
+                {res.added.length > 0
+                  ? <p className="ad-done"><b>{res.added.length}コマ</b>を下書きに入れました。</p>
+                  : <p className="ad-done"><b>新しく入れられるシフトはありませんでした。</b><span className="sub" style={{ display: 'block', fontWeight: 400 }}>{short.length ? '足りない日に、まだシフトに入っていない希望がありません（希望が出ていない・予算が足りない）。' : 'すでに予測の作業時間と最低人数を満たしているので、足すシフトはありません。'}</span></p>}
                 <p className="sub" style={{ margin: '0 0 8px' }}>
                   {res.ledger ? '受発注台帳から作業時間を予測しました' : '受発注台帳がまだ届いていないため、作業時間は「毎日の決まった作業」と最低人数だけで決めました'}
                   {res.ledger && (res.using === 'learned' ? '（実績から学習した目安）' : '（仮の目安）')}。
@@ -80,7 +82,17 @@ export function AutoDraft({ storeId, year, month, names, onAdded, onRemoved, com
                     </table></div>
                   </>
                 ) : <p className="ok-t" style={{ margin: 0 }}>予測の作業時間と最低人数は、すべての日で満たしています。</p>}
-                {over.length > 0 && <p className="sub" style={{ margin: '8px 0 0' }}>日の予算を超えた日：{over.map((d) => `${md(d.date)}（${yen(d.cost)}／${yen(d.budget)}）`).join('、')}</p>}
+                {over.length > 0 && (
+                  <details className="ad-over">
+                    <summary className="sub">日の予算を超えた日 <b>{over.length}日</b>（{over.slice(0, 3).map((d) => md(d.date)).join('、')}{over.length > 3 ? ' ほか' : ''}）　すでに入っているシフトも含めた額です</summary>
+                    <div className="grid-wrap ad-list"><table className="tbl dense">
+                      <thead><tr><th>日</th><th>人件費</th><th>予算</th><th>超えた額</th><th>今回入れた</th></tr></thead>
+                      <tbody>{over.map((d) => (
+                        <tr key={d.date}><td className="num">{md(d.date)}</td><td className="num">{yen(d.cost)}</td><td className="num">{yen(d.budget)}</td><td className="num warn-t">{yen(d.cost - d.budget)}</td><td className="num">{d.added ? `${d.added}人（最低人数のため）` : '—'}</td></tr>
+                      ))}</tbody>
+                    </table></div>
+                  </details>
+                )}
                 {err && <p className="bad-t" style={{ margin: '8px 0 0' }}>{err}</p>}
                 <div className="actions">
                   {res.added.length > 0 && <button className="btn danger left" onClick={undo} disabled={pending}>元に戻す</button>}

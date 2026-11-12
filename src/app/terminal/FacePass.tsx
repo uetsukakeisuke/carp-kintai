@@ -178,7 +178,7 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
         <video ref={video} playsInline muted aria-label="カメラの映像" />
         <i className="faceguide" aria-hidden />
         <div className="fp-status" aria-live="polite">
-          {cam === 'error' ? 'カメラを使えません。iPhoneの設定でこのサイトのカメラを許可してください。'
+          {cam === 'error' ? camHelp()
             : cam === 'starting' || !ready ? '顔パスを準備しています…'
             : p.t === 'reg-capture' ? `${p.row.name}さん、カメラに顔を向けてください（自動で登録します）`
             : hint || 'カメラに顔を近づけてください'}
@@ -285,4 +285,12 @@ export function FacePass({ rows, onPunched, onNameMode }: { rows: Row[]; onPunch
       {err && p.t === 'scan' && <p className="err" style={{ textAlign: 'center' }}>{err}</p>}
     </div>
   );
+}
+
+/** カメラを使えないときの案内（端末ごとに、どこで許可するかを変える） */
+function camHelp() {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)) return 'カメラを使えません。iPhone・iPadの「設定」→「Safari」→「カメラ」で「許可」にして、開き直してください。';
+  if (/Android/.test(ua)) return 'カメラを使えません。アドレスバーの左の鍵のマークから、このサイトのカメラを「許可」にして、開き直してください。';
+  return 'カメラを使えません。ブラウザのアドレスバーの左のマークから、このサイトのカメラを「許可」にして開き直してください（カメラがつながっているかも確かめてください）。';
 }

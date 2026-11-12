@@ -107,7 +107,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
               <td data-label="状態" className="wrap amt"><span style={{ marginLeft: 'auto' }}><span className={`stt s-${sum.state}`}>{STATE_LABEL[sum.state]}</span>{flags.map(([c, t]) => <span key={t} className={`flag f-${c}`}>{t}</span>)}</span></td>
               <td data-label="人件費" className={`num${cost ? '' : ' hide-sp'}`}>{cost ? yen(cost) : '—'}</td>
               <td className="acts" style={{ textAlign: 'right' }}>
-                <EditPunchesButton staffId={s.id} name={s.name} date={d} dateText={dateLabel(d)} punches={ps.map((p) => ({ id: Number(p.id), kind: p.kind, minute: p.minute }))} plan={sh ? { start: sh.start_min, end: sh.end_min } : null} />
+                <EditPunchesButton staffId={s.id} name={s.name} date={d} dateText={dateLabel(d)} punches={ps.map((p) => ({ id: Number(p.id), kind: p.kind, minute: p.minute }))} plan={sh ? { start: sh.start_min, end: sh.end_min } : null}
+                  requests={pending.filter((q) => q.staff_id === s.id && q.work_date === d).map((q) => ({ id: Number(q.id), kind: q.kind, minute: q.minute, reason: q.reason }))} />
               </td>
             </tr>
           ))}

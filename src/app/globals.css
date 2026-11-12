@@ -623,6 +623,8 @@ td.c.mis .mchip { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn) }
 .pinrow b.num { font-size: 18px; letter-spacing: .15em }
 
 /* 管理者の勤怠修正 */
+.pe-req { display: grid; gap: 6px; margin: 10px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent) }
+.pe-req-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap }
 .pe-rows { display: grid; gap: 8px; margin-top: 4px }
 .pe-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 6px; align-items: center }
 .pe-row .sel { width: 100%; min-width: 0; padding-left: 8px; padding-right: 4px }
@@ -984,3 +986,6 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .wage-note.past { background: var(--warn-soft) }
 .wage-later { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 13.5px; line-height: 1.55; cursor: pointer }
 .wage-later input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--accent) }
+.ad-over { margin-top: 8px }
+.ad-over summary { cursor: pointer }
+.ad-over .ad-list { margin-top: 6px }

@@ -12,9 +12,10 @@ const HOURS = Array.from({ length: 30 }, (_, i) => i); // 0〜29時（24時以�
 const MINS = Array.from({ length: 60 }, (_, i) => i);
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 type Row = { key: number; id?: number; kind: PunchKind; minute: number };
+type Req = { id: number; kind: PunchKind; minute: number; reason: string };
 
-function Editor({ staffId, name, date, dateText, punches, plan, onClose, onSaved }: {
-  staffId: number; name: string; date: string; dateText: string; punches: { id: number; kind: PunchKind; minute: number }[]; plan: { start: number; end: number } | null; onClose: () => void; onSaved: (msg: string) => void;
+function Editor({ staffId, name, date, dateText, punches, plan, requests = [], onClose, onSaved }: {
+  staffId: number; name: string; date: string; dateText: string; punches: { id: number; kind: PunchKind; minute: number }[]; plan: { start: number; end: number } | null; requests?: Req[]; onClose: () => void; onSaved: (msg: string) => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -34,6 +35,11 @@ function Editor({ staffId, name, date, dateText, punches, plan, onClose, onSaved
     const minute = last ? Math.min(last.minute + 60, 29 * 60 + 59) : plan?.start ?? 600;
     setRows((x) => [...x, { key: Date.now() + seq++, kind, minute }]);
   };
+  // 本人からの修正申請の時刻を入れる（同じ種類の打刻があればいちばん早いものを直し、なければ足す）
+  const useRequest = (q: Req) => setRows((x) => {
+    const same = [...x].filter((r) => r.kind === q.kind).sort((a, b) => a.minute - b.minute)[0];
+    return same ? x.map((r) => (r.key === same.key ? { ...r, minute: q.minute } : r)) : [...x, { key: Date.now() + seq++, kind: q.kind, minute: q.minute }];
+  });
   const fillPlan = () => plan && setRows((x) => [...x.filter((r) => r.id).map((r) => r), ...(x.some((r) => r.kind === 'in') ? [] : [{ key: Date.now(), kind: 'in' as PunchKind, minute: plan.start }]), ...(x.some((r) => r.kind === 'out') ? [] : [{ key: Date.now() + 1, kind: 'out' as PunchKind, minute: plan.end }])]);
   const save = () => {
     setErr('');
@@ -48,6 +54,18 @@ function Editor({ staffId, name, date, dateText, punches, plan, onClose, onSaved
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="peT">
         <h3 id="peT">{name}　{dateText}の勤怠を直す</h3>
         <div className="meta">{plan ? `予定 ${hm(plan.start)}〜${hm(plan.end)}` : '予定なし'}・24時以降は翌日（例 25:30＝翌1:30）</div>
+        {requests.length > 0 && (
+          <div className="pe-req">
+            <b>本人からの修正申請</b>
+            {requests.map((q) => (
+              <div key={q.id} className="pe-req-row">
+                <span><b>{LABEL[q.kind]}</b> を <span className="num">{hm(q.minute)}</span> に<span className="sub">　{q.reason}</span></span>
+                <button type="button" className="btn sm" onClick={() => useRequest(q)}>この時刻を入れる</button>
+              </div>
+            ))}
+            <p className="sub" style={{ margin: 0 }}>申請と同じ時刻で保存すると、申請は「承認」になります。</p>
+          </div>
+        )}
         <div className="pe-rows">
           {sorted.map((r) => (
             <div key={r.key} className="pe-row">
@@ -86,7 +104,7 @@ function Editor({ staffId, name, date, dateText, punches, plan, onClose, onSaved
 }
 
 /** 勤怠実績の各行の「直す」ボタン */
-export function EditPunchesButton(p: { staffId: number; name: string; date: string; dateText: string; punches: { id: number; kind: PunchKind; minute: number }[]; plan: { start: number; end: number } | null; label?: string }) {
+export function EditPunchesButton(p: { staffId: number; name: string; date: string; dateText: string; punches: { id: number; kind: PunchKind; minute: number }[]; plan: { start: number; end: number } | null; requests?: Req[]; label?: string }) {
   const [open, setOpen] = useState(false);
   const [toast, node] = useToast();
   return (

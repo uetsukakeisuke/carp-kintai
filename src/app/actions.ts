@@ -362,9 +362,9 @@ export async function editPunchesAction(staffId: number, date: string, items: { 
     seq.push(it);
   }
   const why = String(reason ?? '').trim().slice(0, 200) || '管理者が修正';
-  await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
+  const { resolved } = await replaceDayPunches(u.id, Number(staffId), date, sorted, why);
   revalidatePath('/manage/attendance');
-  return { ok: true, message: '勤怠を直しました' };
+  return { ok: true, message: resolved ? `勤怠を直しました（修正申請${resolved}件を承認にしました）` : '勤怠を直しました' };
 }
 
 // ---------- 受発注の報告（管理者だけ） ----------

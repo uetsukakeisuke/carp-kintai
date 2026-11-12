@@ -190,7 +190,13 @@ export async function replaceDayPunches(actorId: number, staffId: number, date: 
       }
     }
   });
-  await audit(actorId, 'punches_edited', { staffId, date, reason, before: before.map((p) => [p.kind, p.minute]), after: items.map((i) => [i.kind, i.minute]) });
+  // 同じ日の本人からの修正申請のうち、直した結果に同じ種類・同じ時刻の打刻があるものは「承認」にする（二重に対応しないように）
+  const resolved = await sql<{ id: number }[]>`update correction_requests c set status = 'approved', decided_by = ${actorId}, decided_at = now()
+    where c.staff_id = ${staffId} and c.work_date = ${date} and c.status = 'pending'
+      and exists (select 1 from punches p where p.staff_id = c.staff_id and p.work_date = c.work_date and not p.voided and p.kind = c.kind and p.minute = c.minute)
+    returning c.id`;
+  await audit(actorId, 'punches_edited', { staffId, date, reason, before: before.map((p) => [p.kind, p.minute]), after: items.map((i) => [i.kind, i.minute]), resolvedRequests: resolved.map((r) => Number(r.id)) });
+  return { resolved: resolved.length };
 }
 
 // ---------------- いま出勤している人（全員が見られる） ----------------
