@@ -9,7 +9,7 @@ import { TaskList } from '@/components/TaskList';
 import { tasksForStaff, toItem } from '@/lib/tasks';
 import { ledgerBrief } from '@/lib/brief-data';
 import { LedgerBrief } from '@/components/LedgerBrief';
-import { partsText } from '@/lib/shift-parts';
+import { partsText, isSplit } from '@/lib/shift-parts';
 
 export default async function PunchPage() {
   const u = await requireUser();
@@ -18,7 +18,7 @@ export default async function PunchPage() {
   const s = summarizeDay(day.punches, { now: day.minute, plan: plan ? { start: plan.start_min, end: plan.end_min } : null });
   const lk = lastKind(day.punches);
   const dayWord = day.date === jstParts().date ? '今日' : '前日';
-  const planText = plan ? (plan.parts ? partsText(plan.parts) : `${hm(plan.start_min)}〜${hm(plan.end_min)}`) : '';
+  const planText = plan ? (isSplit(plan.parts) ? partsText(plan.parts) : `${hm(plan.start_min)}〜${hm(plan.end_min)}`) : '';
   // シフトがある日は、予定表と受発注の入荷・出荷をまとめて出す（シフト前に確認できるように）
   const brief = plan && ledger ? ledger.byDate.get(day.date) ?? null : null;
   const showLedger = !!(plan && ledger && (brief || tasks.length > 0));

@@ -141,12 +141,14 @@ export function laborCost(workMin: number, hourly: number) {
 }
 
 /**
- * シフト予定 1 件の実働と人件費（休憩を自動控除：6時間超で45分、8時間超で60分）。
- * 時間帯に分かれたシフト（parts）は、時間帯ごとの長さの合計（各時間帯に同じ休憩の決まり）。間の時間は勤務に入れない。
+ * シフト予定 1 件の実働と人件費。
+ * アプリで入れたシフトは、開始〜終了から休憩を自動控除（6時間超で45分、8時間超で60分）。
+ * 時間帯つきのシフト（parts：スマレジから取り込んだもの）は、書いてある時間帯の長さの合計（休憩を引かない。間の時間は入れない）。
  */
 export function planCost(shift: { start: number; end: number; parts?: [number, number][] | null }, hourly: number) {
-  const parts = shift.parts && shift.parts.length > 1 ? shift.parts : [[shift.start, shift.end] as [number, number]];
-  const workMin = parts.reduce((a, [s, e]) => a + Math.max(0, e - s - autoBreak(e - s)), 0);
+  const workMin = shift.parts && shift.parts.length
+    ? shift.parts.reduce((a, [s, e]) => a + Math.max(0, e - s), 0)
+    : Math.max(0, shift.end - shift.start - autoBreak(shift.end - shift.start));
   const breakMin = Math.max(0, shift.end - shift.start - workMin);
   return { workMin, breakMin, total: laborCost(workMin, hourly) };
 }

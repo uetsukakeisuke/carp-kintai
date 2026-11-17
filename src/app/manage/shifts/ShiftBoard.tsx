@@ -7,7 +7,7 @@ import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
 import { AutoDraft } from './AutoDraft';
 import { ShiftImport } from './ShiftImport';
-import { partsOf, partsText, gapsOf, type Part } from '@/lib/shift-parts';
+import { partsOf, partsText, gapsOf, isSplit, type Part } from '@/lib/shift-parts';
 import type { Window } from '@/lib/forecast';
 
 type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: Part[] | null };
@@ -24,8 +24,8 @@ const man1 = (n: number) => (n / 10000).toFixed(1); // 万円（小数1桁）
 const TL_S = 8 * 60, TL_E = 26 * 60; // 日ごとのバーの範囲（8時〜翌2時）
 const pct = (m: number) => ((Math.min(Math.max(m, TL_S), TL_E) - TL_S) / (TL_E - TL_S)) * 100;
 type View = 'day' | 'week' | 'month';
-/** 分割シフトを分割のまま保存するか（開始・終了が元の時間帯の端と同じとき） */
-const keepParts = (x: { s: number; e: number; parts?: Part[] | null }) => !!x.parts && x.parts.length > 1 && x.parts[0][0] === x.s && x.parts[x.parts.length - 1][1] === x.e;
+/** 時間帯つきのシフト（スマレジから取り込んだもの）を、時間帯のまま保存するか（開始・終了が元の時間帯の端と同じとき） */
+const keepParts = (x: { s: number; e: number; parts?: Part[] | null }) => !!x.parts && x.parts.length > 0 && x.parts[0][0] === x.s && x.parts[x.parts.length - 1][1] === x.e;
 
 export function ShiftBoard(p: {
   store: { id: number; name: string; budget: number[] }; year: number; month: number; status: string;
@@ -92,7 +92,7 @@ export function ShiftBoard(p: {
       }
     }
     return { dayCost, dayN, staffCost, cost, work };
-  }, [shifts]); // eslint-disable-line
+  }, [shifts, p.staff, p.rates]); // eslint-disable-line
   let budget = 0, filledBudget = 0, overDays = 0, mis = 0, filled = 0;
   for (let d = 1; d <= nd; d++) { budget += budgetOf(d); if (totals.dayCost[d] > 0) { filled++; filledBudget += budgetOf(d); } if (totals.dayCost[d] > budgetOf(d)) overDays++; }
   for (const st of p.staff) for (let d = 1; d <= nd; d++) if (mismatch(st.id, d)) mis++;
@@ -209,7 +209,7 @@ export function ShiftBoard(p: {
                 <div className="bars-axis" aria-hidden><span />{<div>{ticks.map((h) => <i key={h} style={{ left: `${pct(h * 60)}%` }}>{h}</i>)}</div>}</div>
                 {people.map(({ st, sh, h }) => (
                   <button key={st.id} type="button" role="listitem" className={`barrow${sh ? ' on' : ''}${mismatch(st.id, d) ? ' mis' : ''}`} onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                    <span className="bn"><b>{st.name}</b><small>{sh ? (sh.parts ? partsText(sh.parts) : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
+                    <span className="bn"><b>{st.name}</b><small>{sh ? (isSplit(sh.parts) ? partsText(sh.parts) : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
                     <span className="bt">
                       {ticks.map((x) => <i key={x} className="grid" style={{ left: `${pct(x * 60)}%` }} />)}
                       {h && <i className="hb" style={{ left: `${pct(h.s)}%`, width: `${pct(h.e) - pct(h.s)}%` }} />}
@@ -254,7 +254,7 @@ export function ShiftBoard(p: {
                         return (
                           <td key={d} className={`${h ? 'hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                             <button type="button" onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                              {sh ? <span className={`wchip num${sh.parts ? ' split' : ''}`} title={sh.parts ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="whope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                              {sh ? <span className={`wchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="whope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
                             </button>
                           </td>);
                       })}
@@ -311,11 +311,11 @@ export function ShiftBoard(p: {
                       return (
                         <td key={d} className={`c${h ? ' hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                           <button onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                            {sh ? <span className={`mchip num${sh.parts ? ' split' : ''}`} title={sh.parts ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="mhope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                            {sh ? <span className={`mchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="mhope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
                           </button>
                         </td>);
                     })}
-                    <td className="tot"><b>{(totals.staffCost[st.id].w / 60).toFixed(1)}h</b><small>{yen(totals.staffCost[st.id].c)}</small></td>
+                    <td className="tot"><b>{((totals.staffCost[st.id]?.w ?? 0) / 60).toFixed(1)}h</b><small>{yen(totals.staffCost[st.id]?.c ?? 0)}</small></td>
                   </tr>
                 ))}
               </tbody>
@@ -328,7 +328,7 @@ export function ShiftBoard(p: {
           </div>
         </div>
       </>}
-      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。時間帯が分かれたシフト（スマレジから取り込んだ「8:45〜10:15・10:30〜12:00」など。マスに点線の印）は、間の時間を勤務に入れません。</p>
+      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。スマレジから取り込んだシフトは、スマレジに書いてある時間どおりに数えます（休憩を自動で引かず、「8:45〜10:15・10:30〜12:00」のように分かれた日は間の時間を入れません。分かれた日はマスに点線の印）。</p>
 
       {ed && (() => {
         const st = p.staff.find((x) => x.id === ed.staffId)!;
@@ -355,18 +355,20 @@ export function ShiftBoard(p: {
                 <label htmlFor="ee" className="sub">終了</label>
                 <select id="ee" className="sel" value={ed.e} onChange={(e) => setEd({ ...ed, e: Number(e.target.value) })}>{TIMES.map((x) => <option key={x} value={x}>{hm(x)}</option>)}</select>
               </div>
-              {ed.parts && (
+              {ed.parts && ed.parts.length > 0 && (
                 <div className={`hopebox ${kept ? 'ok' : 'ng'}`} style={{ marginTop: 8 }}>
                   {kept
-                    ? <>時間帯が分かれたシフト：<b className="num">{partsText(ed.parts)}</b>（間の {partsText(gapsOf(ed.parts))} は勤務に入れません）</>
-                    : <>開始・終了を変えたので、{hm(ed.s)}〜{hm(ed.e)} の続いたシフトになります（分かれていた時間帯：{partsText(ed.parts)}）</>}
+                    ? (isSplit(ed.parts)
+                      ? <>スマレジの時間どおり：<b className="num">{partsText(ed.parts)}</b>（間の {partsText(gapsOf(ed.parts))} は勤務に入れず、休憩も引きません）</>
+                      : <>スマレジの時間どおり：<b className="num">{partsText(ed.parts)}</b>（休憩を自動で引きません）</>)
+                    : <>開始・終了を変えたので、アプリで入れたシフトと同じ数え方（6時間超で45分・8時間超で60分の休憩を引く）になります（元の時間：{partsText(ed.parts)}）</>}
                 </div>
               )}
               {!valid && <p className="err">終了時刻を開始時刻より後にしてください。</p>}
               {outside && <p className="err" style={{ color: 'var(--warn)' }}>出勤希望の日・時間帯から外れています。本人に確認してから確定してください。</p>}
               {r && (
                 <div className="calc">
-                  <span>{r.breakMin ? (kept ? `実働（間の${r.breakMin}分を除く）` : `実働（休憩${r.breakMin}分を控除）`) : '実働'}</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
+                  <span>{r.breakMin ? (kept ? `実働（間の${r.breakMin}分を除く）` : `実働（休憩${r.breakMin}分を控除）`) : kept ? '実働（休憩を引かない）' : '実働'}</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
                   <span>時給</span><span className="r">{yen(rate(st.id, key(ed.d)))}</span>
                   <b>このシフトの人件費（時給×実働）</b><b className="r">{yen(r.total)}</b>
                 </div>

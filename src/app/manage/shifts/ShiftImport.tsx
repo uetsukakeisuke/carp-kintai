@@ -4,20 +4,23 @@ import Link from 'next/link';
 import { previewShiftImportAction, applyShiftImportAction, type ShiftImportPreviewReply } from '@/app/actions';
 import { call } from '@/lib/call';
 import { planCost } from '@/lib/calc';
-import { partsText, partsOf } from '@/lib/shift-parts';
+import { partsText, partsOf, isSplit } from '@/lib/shift-parts';
 import { importDiff, type ImportEntry } from '@/lib/shift-import';
 
 type Preview = Extract<ShiftImportPreviewReply, { ok: true }>;
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}（${WD[new Date(d + 'T00:00:00Z').getUTCDay()]}）`;
 const h1 = (m: number) => (Math.round(m / 6) / 10).toString();
+const yen = (n: number) => '¥' + n.toLocaleString('ja-JP');
+const NEW = -1; // 「新しいスタッフとして登録」
 
 /** シフト作成：スマレジのシフト表（Excel）や CSV から、1か月分を下書きに一括で入れる */
 export function ShiftImport({ storeId, year, month }: { storeId: number; year: number; month: number }) {
   const [open, setOpen] = useState(false);
   const [pv, setPv] = useState<Preview | null>(null);
   const [fileName, setFileName] = useState('');
-  const [map, setMap] = useState<number[]>([]); // ファイルの行 → スタッフID（0＝取り込まない）
+  const [map, setMap] = useState<number[]>([]); // ファイルの行 → スタッフID（0＝取り込まない、-1＝新しく登録）
+  const [wage, setWage] = useState<string[]>([]); // 新しく登録する人の時給
   const [mode, setMode] = useState<'replace' | 'fill'>('replace');
   const [err, setErr] = useState('');
   const [done, setDone] = useState('');
@@ -34,32 +37,40 @@ export function ShiftImport({ storeId, year, month }: { storeId: number; year: n
       fd.set('storeId', String(storeId)); fd.set('file', f);
       const r = await call(() => previewShiftImportAction(fd));
       if (!r.ok) { setErr(r.error); setPv(null); return; }
-      setPv(r); setMap(r.rows.map((x) => x.staffId ?? 0));
+      setPv(r);
+      // アプリにいない人は、スマレジに書いてあるとおり新しく登録する（時給はスマレジの人件費から計算。最低賃金より低ければ最低賃金）
+      setMap(r.rows.map((x) => x.staffId ?? NEW));
+      setWage(r.rows.map((x) => String(Math.max(x.wage ?? 0, r.minWage))));
     });
   };
 
   const sum = useMemo(() => {
     if (!pv) return null;
-    const staffIds = map.filter((id) => id > 0);
-    const dup = new Set(staffIds.filter((id, i) => staffIds.indexOf(id) !== i));
-    const entries: ImportEntry[] = pv.rows.flatMap((r, i) => (map[i] > 0 ? r.days.map((d) => ({ staffId: map[i], date: d.date, start: d.start, end: d.end, parts: d.parts })) : []));
+    // 新しく登録する人は、仮の番号（-1, -2, …）で数える
+    const idOf = (i: number) => (map[i] === NEW ? -(i + 1) : map[i]);
+    const picked = map.filter((id) => id > 0);
+    const dup = new Set(picked.filter((id, i) => picked.indexOf(id) !== i));
+    const staffIds = [...new Set(map.map((_, i) => idOf(i)).filter((id) => id !== 0))];
+    const entries: ImportEntry[] = pv.rows.flatMap((r, i) => (map[i] !== 0 ? r.days.map((d) => ({ staffId: idOf(i), date: d.date, start: d.start, end: d.end, parts: d.parts })) : []));
+    const newStaff = pv.rows.flatMap((r, i) => (map[i] === NEW ? [{ tmp: -(i + 1), name: r.name, hourly: Number(wage[i]) }] : []));
+    const lowWage = newStaff.filter((n) => !Number.isInteger(n.hourly) || n.hourly < pv.minWage);
     const diff = importDiff(pv.existing, entries, staffIds, mode);
     const unmatched = pv.rows.filter((r, i) => !map[i] && r.days.length > 0);
-    const split = entries.some((e) => e.parts);
+    const split = entries.some((e) => isSplit(e.parts));
     const work = entries.reduce((a, e) => a + planCost(e, 0).workMin, 0);
-    return { staffIds: [...new Set(staffIds)], dup, entries, diff, unmatched, split, work };
-  }, [pv, map, mode]);
+    return { staffIds, dup, entries, newStaff, lowWage, diff, unmatched, split, work };
+  }, [pv, map, mode, wage]);
 
   const apply = () => {
     if (!pv || !sum) return;
     start(async () => {
-      const r = await call(() => applyShiftImportAction(storeId, pv.ym, sum.entries, sum.staffIds, mode), 60_000);
+      const r = await call(() => applyShiftImportAction(storeId, pv.ym, sum.entries, sum.staffIds, mode, sum.newStaff), 60_000);
       if (!r.ok) { setErr(r.error); return; }
       setDone(r.message ?? '取り込みました');
     });
   };
   const [py, pm] = pv ? pv.ym.split('-').map(Number) : [year, month];
-  const blocked = !pv || !sum || !sum.staffIds.length || sum.dup.size > 0 || (sum.split && !pv.partsReady);
+  const blocked = !pv || !sum || !sum.staffIds.length || sum.dup.size > 0 || sum.lowWage.length > 0 || !pv.partsReady;
 
   return (
     <>
@@ -115,10 +126,23 @@ export function ShiftImport({ storeId, year, month }: { storeId: number; year: n
                           <td>
                             <select className="sel" value={map[i]} aria-label={`${r.name}を入れるスタッフ`} onChange={(e) => setMap((m) => m.map((x, j) => (j === i ? Number(e.target.value) : x)))}>
                               <option value={0}>（取り込まない）</option>
+                              {r.staffId === null && <option value={NEW}>＋ 新しいスタッフとして登録</option>}
                               {pv.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             {isDup && <div className="bad-t si-note">同じスタッフが2行に選ばれています</div>}
-                            {!map[i] && r.days.length > 0 && <div className="warn-t si-note">アプリに同じ名前の人がいません</div>}
+                            {map[i] === NEW && (
+                              <div className="si-new">
+                                <label>時給 <input className="in num" type="number" inputMode="numeric" min={pv.minWage} step={1} value={wage[i]} aria-label={`${r.name}の時給`}
+                                  onChange={(e) => setWage((w) => w.map((x, j) => (j === i ? e.target.value : x)))} /> 円</label>
+                                <span className="sub si-note">
+                                  {r.wage === null ? 'スマレジの人件費から計算できないため最低賃金にしています。正しい時給に直してください'
+                                    : r.wage < pv.minWage ? `スマレジの時給 ${yen(r.wage)} は最低賃金を下回るため ${yen(pv.minWage)}`
+                                    : `スマレジの人件費から計算した時給 ${yen(r.wage)}`}
+                                </span>
+                                {Number(wage[i]) < pv.minWage && <span className="bad-t si-note">最低賃金（{yen(pv.minWage)}）以上にしてください</span>}
+                              </div>
+                            )}
+                            {!map[i] && r.days.length > 0 && <div className="warn-t si-note">この人のシフトは取り込みません</div>}
                           </td>
                           <td className="num">{r.days.length ? `${r.days.length}日` : '—'}</td>
                           <td className="num">{work ? `${h1(work)}h` : '—'}</td>
@@ -127,9 +151,10 @@ export function ShiftImport({ storeId, year, month }: { storeId: number; year: n
                     })}
                   </tbody>
                 </table></div>
-                {sum!.unmatched.length > 0 && (
+                {sum!.newStaff.length > 0 && (
                   <p className="sub" style={{ margin: '6px 0 0' }}>
-                    名前が合わない人（{sum!.unmatched.map((r) => r.name).join('、')}）は、スタッフを選ぶか、<Link href="/manage/staff">スタッフ・時給</Link>で追加してから、もう一度ファイルを選んでください。
+                    アプリにいない {sum!.newStaff.map((n) => n.name).join('、')} さんは、取り込むときにスタッフとして登録します（パート・{pm}月1日からの時給・ログインは名前を押すだけ）。
+                    フリガナや交通費は、あとで<Link href="/manage/staff">スタッフ・時給</Link>で入れられます。
                   </p>
                 )}
                 <fieldset className="si-mode">
@@ -138,13 +163,16 @@ export function ShiftImport({ storeId, year, month }: { storeId: number; year: n
                   <label><input type="radio" name="si-mode" checked={mode === 'fill'} onChange={() => setMode('fill')} /> シフトが入っていない日だけ入れる（入っている日はそのまま）</label>
                 </fieldset>
                 <div className="si-sum">
+                  {sum!.newStaff.length > 0 && <span>新しく登録 <b className="num">{sum!.newStaff.length}</b>人</span>}
                   <span>入る <b className="num">{sum!.diff.added}</b>件</span>
                   {mode === 'replace' ? <><span>時間が変わる <b className="num">{sum!.diff.changed}</b>件</span><span className={sum!.diff.removed ? 'warn-t' : ''}>外れる <b className="num">{sum!.diff.removed}</b>件</span><span className="sub">同じ {sum!.diff.same}件</span></>
                     : <span className="sub">入っているので入れない {sum!.diff.skipped}件</span>}
                   <span className="sub">合計 {h1(sum!.work)}時間</span>
                 </div>
-                {sum!.split && <p className="sub" style={{ margin: '6px 0 0' }}>「8:45〜10:15・10:30〜12:00」のように分かれた日は、分かれたまま入れます。間の時間は勤務に数えません。</p>}
-                {sum!.split && !pv.partsReady && <p className="bad-t" style={{ margin: '6px 0 0' }}>分かれた時間帯を入れるには、先にデータベースの準備が必要です。Supabase の SQL Editor で <code>db/update-2026-11-17-shifts.sql</code> を実行してから、もう一度ファイルを選んでください。</p>}
+                <p className="sub" style={{ margin: '6px 0 0' }}>
+                  スマレジに書いてある時間どおりに数えます（休憩を自動で引きません）。{sum!.split && '「8:45〜10:15・10:30〜12:00」のように分かれた日は、分かれたまま入れ、間の時間は勤務に数えません。'}
+                </p>
+                {!pv.partsReady && <p className="bad-t" style={{ margin: '6px 0 0' }}>取り込むには、先にデータベースの準備が必要です。Supabase の SQL Editor で <code>db/update-2026-11-17-shifts.sql</code> を実行してから、もう一度ファイルを選んでください。</p>}
                 {pv.warnings.length > 0 && (
                   <details className="si-warn" open={pv.warnings.length <= 3}><summary className="warn-t">読めなかったところ {pv.warnings.length}件</summary>
                     <ul>{pv.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>

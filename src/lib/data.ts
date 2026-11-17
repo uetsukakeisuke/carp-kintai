@@ -158,8 +158,8 @@ export async function upsertShift(actorId: number, c: { storeId: number; staffId
   const p = await ensurePeriod(c.storeId, y, m);
   if ('delete' in c) await sql`delete from shifts where staff_id = ${c.staffId} and work_date = ${c.date}`;
   else if (await partsReady()) {
-    // 時間を変えたら続いたシフトになる（分割のままにするのは、時間帯をそのまま渡されたときだけ）
-    const parts = c.parts && c.parts.length > 1 ? c.parts : null;
+    // 時間帯（スマレジの時間どおり）を残すのは、時間帯をそのまま渡されたときだけ。時間を変えたらアプリの決まり（休憩を自動で引く）
+    const parts = c.parts && c.parts.length ? c.parts : null;
     await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min, parts) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end}, ${parts ? sql.json(parts) : null})
       on conflict (staff_id, work_date) do update set store_id = excluded.store_id, start_min = excluded.start_min, end_min = excluded.end_min, parts = excluded.parts, updated_at = now()`;
   } else await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end})

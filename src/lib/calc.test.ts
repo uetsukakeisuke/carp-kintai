@@ -96,6 +96,9 @@ describe('人件費', () => {
     expect(split.workMin).toBe(270);
     expect(split.breakMin).toBe(90);
     expect(split.total).toBe(5400);
+    // スマレジから取り込んだ「10:00〜18:00」（時間帯つき）は書いてあるとおり8時間（休憩を引かない）
+    expect(planCost({ start: 600, end: 1080, parts: [[600, 1080]] }, 1200).workMin).toBe(480);
+    expect(planCost({ start: 600, end: 1080 }, 1200).workMin).toBe(435); // アプリで入れた同じ時間は45分引く
   });
   it('円未満は四捨五入', () => {
     expect(laborCost(50, 1150)).toBe(958); // 958.33…

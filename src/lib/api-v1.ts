@@ -42,7 +42,7 @@ export async function v1Shifts(from: string, to: string) {
   return rows.map((r) => ({
     date: r.work_date, staff_id: r.staff_id, name: r.name, store: r.store,
     start: hhmm(r.start_min), end: hhmm(r.end_min), start_at: at(r.work_date, r.start_min), end_at: at(r.work_date, r.end_min),
-    // 時間帯が分かれたシフトのときだけ、時間帯の一覧（分かれていなければ null）
+    // 時間帯の一覧（スマレジから取り込んだシフト。アプリで入れたシフトは null）
     parts: readParts(r.parts)?.map(([a, b]) => ({ start: hhmm(a), end: hhmm(b), start_at: at(r.work_date, a), end_at: at(r.work_date, b) })) ?? null,
   }));
 }

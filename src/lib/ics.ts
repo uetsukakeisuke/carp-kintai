@@ -45,7 +45,7 @@ export function buildIcs(o: { staffId: number; name: string; shifts: IcsShift[];
 
   for (const s of o.shifts) {
     // 時間帯が分かれたシフトは、時間帯ごとに1件（1件目は今までと同じ UID のまま）
-    const parts = s.parts && s.parts.length > 1 ? s.parts : [[s.start, s.end] as [number, number]];
+    const parts = s.parts && s.parts.length ? s.parts : [[s.start, s.end] as [number, number]];
     const all = parts.map(([a, b]) => `${hm(a)}〜${hm(b)}`).join('・');
     parts.forEach(([a, b], i) => {
       L.push('BEGIN:VEVENT', `UID:${uid(`shift-${o.staffId}-${s.date}${i ? `-${i + 1}` : ''}`)}`, `DTSTAMP:${ds}`,

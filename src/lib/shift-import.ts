@@ -2,9 +2,9 @@
 // データベースには触れない（テストしやすいように）。読み取った表（文字の2次元配列）から、人ごと・日ごとの時間帯を作る。
 import { mergeParts, sameParts, type Part } from './shift-parts';
 
-export type ImportDay = { date: string; start: number; end: number; parts: Part[] | null };
+export type ImportDay = { date: string; start: number; end: number; parts: Part[] };
 export type ImportRow = { name: string; days: ImportDay[] };
-export type ParsedShifts = { ym: string; format: 'grid' | 'list'; rows: ImportRow[]; warnings: string[] };
+export type ParsedShifts = { ym: string; format: 'grid' | 'list'; rows: ImportRow[]; warnings: string[]; dayCost?: Record<string, number> };
 
 const SUMMARY = /^(出勤人数|勤務時間|人件費|合計|計|小計|総計|人数)/;
 
@@ -68,7 +68,8 @@ export function parseRanges(cell: string): Part[] | 'bad' {
 }
 const toDay = (date: string, parts: Part[]): ImportDay => {
   const ps = mergeParts(parts);
-  return { date, start: ps[0][0], end: ps[ps.length - 1][1], parts: ps.length > 1 ? ps : null };
+  // 取り込んだシフトは時間帯をそのまま持つ（1つでも）。勤務時間はスマレジに書いてあるとおりになる
+  return { date, start: ps[0][0], end: ps[ps.length - 1][1], parts: ps };
 };
 
 // ---------- 表の読み取り ----------
@@ -102,9 +103,15 @@ function fromGrid(rows: string[][], h: number, cols: { i: number; d: string }[])
   const nameCol = Math.max(0, useCols[0].i - 1);
   const out: ImportRow[] = [];
   const seen = new Map<string, ImportRow>();
+  const dayCost: Record<string, number> = {};
   for (let r = h + 1; r < rows.length; r++) {
     const row = rows[r];
     const name = (row[nameCol] ?? '').replace(/[\s　]+/g, ' ').trim();
+    if (name && /^人件費/.test(name.normalize('NFKC'))) {
+      // スマレジの「人件費(円)」の行（日ごとの人件費）。新しく登録する人の時給を計算するのに使う
+      for (const c of useCols) { const v = Number((row[c.i] ?? '').normalize('NFKC').replace(/[,円¥\s]/g, '')); if (Number.isFinite(v)) dayCost[c.d] = v; }
+      continue;
+    }
     if (!name || SUMMARY.test(name.normalize('NFKC'))) continue;
     // 名前が数字だけの行・日付の列に数字だけが並ぶ行（出勤人数・勤務時間などの集計）は飛ばす
     if (/^-?\d+(\.\d+)?$/.test(name.normalize('NFKC'))) continue;
@@ -125,7 +132,7 @@ function fromGrid(rows: string[][], h: number, cols: { i: number; d: string }[])
     seen.set(nameKey(name), rowOut); out.push(rowOut);
   }
   if (!out.length) return '名前の行が見つかりませんでした。';
-  return { ym: mo.ym, format: 'grid', rows: out, warnings };
+  return { ym: mo.ym, format: 'grid', rows: out, warnings, dayCost: Object.keys(dayCost).length ? dayCost : undefined };
 }
 
 function fromList(rows: string[][]): ParsedShifts | string | null {
@@ -211,3 +218,40 @@ export function importDiff(existing: ExistingShift[], entries: ImportEntry[], st
   return c;
 }
 
+
+// ---------- 時給の計算（スマレジの日ごとの人件費から） ----------
+/**
+ * スマレジのシフト表の「人件費」の行は、その日に入っている人の「時間×時給」の合計。
+ * 日ごとの式を並べて、人ごとの時給を求める（最小二乗）。決まらない人・式に合わないときは null。
+ */
+export function deriveWages(rows: ImportRow[], dayCost?: Record<string, number>): (number | null)[] {
+  const none = rows.map(() => null);
+  if (!dayCost) return none;
+  const who = rows.map((r, i) => ({ r, i })).filter((x) => x.r.days.length > 0);
+  const dates = Object.keys(dayCost).filter((d) => who.some((x) => x.r.days.some((y) => y.date === d)));
+  const n = who.length;
+  if (!n || dates.length < n) return none;
+  const hours = (r: ImportRow, d: string) => { const x = r.days.find((y) => y.date === d); return x ? x.parts.reduce((a, [s, e]) => a + (e - s), 0) / 60 : 0; };
+  const A = dates.map((d) => who.map((x) => hours(x.r, d)));
+  const b = dates.map((d) => dayCost[d]);
+  // 正規方程式 AᵀA x = Aᵀb をガウスの消去法で解く
+  const M = Array.from({ length: n }, (_, i) => [...Array.from({ length: n }, (_, j) => A.reduce((a, row) => a + row[i] * row[j], 0)), A.reduce((a, row, k) => a + row[i] * b[k], 0)]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    if (Math.abs(M[p][c]) < 1e-9) return none; // 一緒にしか入っていない人がいるなどで決まらない
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = M[r][c] / M[c][c];
+      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  const x = M.map((row, i) => Math.round(row[n] / row[i]));
+  // 丸めた時給で、どの日も1円程度しかずれないときだけ使う
+  const ok = A.every((row, k) => Math.abs(row.reduce((a, h, j) => a + h * x[j], 0) - b[k]) <= 1 + row.filter((h) => h > 0).length);
+  if (!ok || x.some((w) => w <= 0 || w > 100000)) return none;
+  const out: (number | null)[] = [...none];
+  who.forEach((w, j) => { out[w.i] = x[j]; });
+  return out;
+}

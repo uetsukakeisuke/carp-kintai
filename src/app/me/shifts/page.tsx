@@ -4,7 +4,7 @@ import { listStaff, listStores, publishedShifts } from '@/lib/data';
 import { sql } from '@/lib/db';
 import { jstParts, daysInMonth, ymd, weekday, WD, hshort, dateLabel, hm } from '@/lib/time';
 import { Timeline } from '@/components/Timeline';
-import { partsText } from '@/lib/shift-parts';
+import { partsText, isSplit } from '@/lib/shift-parts';
 
 export default async function AllShiftsPage({ searchParams }: { searchParams: Promise<{ ym?: string; d?: string; store?: string }> }) {
   const u = await requireUser();
@@ -55,7 +55,7 @@ export default async function AllShiftsPage({ searchParams }: { searchParams: Pr
               <Timeline rows={dayRows} meId={u.id} /></div>
             <h2 className="sec">自分の{m}月の出勤（{mine.length}日）</h2>
             <div className="grid-wrap"><table className="tbl"><tbody>
-              {mine.map((r) => <tr key={r.work_date}><td>{dateLabel(r.work_date)}</td><td className="num" style={{ textAlign: 'right' }}>{r.parts ? partsText(r.parts) : `${hm(r.start_min)}〜${hm(r.end_min)}`}</td></tr>)}
+              {mine.map((r) => <tr key={r.work_date}><td>{dateLabel(r.work_date)}</td><td className="num" style={{ textAlign: 'right' }}>{isSplit(r.parts) ? partsText(r.parts) : `${hm(r.start_min)}〜${hm(r.end_min)}`}</td></tr>)}
               {!mine.length && <tr><td className="sub">出勤予定はありません</td></tr>}
             </tbody></table></div>
             <h2 className="sec">月間一覧</h2>
@@ -70,7 +70,7 @@ export default async function AllShiftsPage({ searchParams }: { searchParams: Pr
               {staff.map((s) => (
                 <tr key={s.id} style={s.id === u.id ? { outline: '2px solid var(--ok)', outlineOffset: -2 } : undefined}>
                   <th className="sc staffc"><b>{s.name}{s.id === u.id ? '（自分）' : ''}</b></th>
-                  {Array.from({ length: nd }, (_, i) => { const k = ymd(y, m, i + 1); const r = rows.find((x) => x.staff_id === s.id && x.work_date === k); return <td key={k} className="c" style={{ height: 40 }}>{r && <span className="chip" title={r.parts ? partsText(r.parts) : undefined} style={{ margin: '6px 4px', background: s.id === u.id ? 'var(--ok)' : undefined, outline: r.parts ? '1.5px dashed var(--accent)' : undefined }}>{hshort(r.start_min)}-{hshort(r.end_min)}</span>}</td>; })}
+                  {Array.from({ length: nd }, (_, i) => { const k = ymd(y, m, i + 1); const r = rows.find((x) => x.staff_id === s.id && x.work_date === k); return <td key={k} className="c" style={{ height: 40 }}>{r && <span className="chip" title={isSplit(r.parts) ? partsText(r.parts) : undefined} style={{ margin: '6px 4px', background: s.id === u.id ? 'var(--ok)' : undefined, outline: isSplit(r.parts) ? '1.5px dashed var(--accent)' : undefined }}>{hshort(r.start_min)}-{hshort(r.end_min)}</span>}</td>; })}
                 </tr>
               ))}
             </tbody>

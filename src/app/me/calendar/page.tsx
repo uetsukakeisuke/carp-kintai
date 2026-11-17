@@ -10,7 +10,7 @@ import { tasksOfStore, storeOf, toItem } from '@/lib/tasks';
 import { sql } from '@/lib/db';
 import { ledgerBrief } from '@/lib/brief-data';
 import { LedgerBrief } from '@/components/LedgerBrief';
-import { partsText } from '@/lib/shift-parts';
+import { partsText, isSplit } from '@/lib/shift-parts';
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ ym?: string; d?: string }> }) {
   const u = await requireUser();
@@ -53,7 +53,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     cells.push(
       <Link key={k} className={cls} href={`/me/calendar?ym=${ym}&d=${k}`} scroll={false} aria-label={`${m}月${d}日${sh ? ' シフトあり' : ''}`}>
         <span className="cn">{d}</span>
-        {sh && <span className={`csh${sh.parts ? ' split' : ''}`} title={sh.parts ? partsText(sh.parts, '\n') : undefined}>{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
+        {sh && <span className={`csh${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}>{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
         {(() => {
           // 受発注の入荷・出荷（今日以降。全員に出す）
           const lb = k >= now.date ? ledger?.byDate.get(k) : undefined;
@@ -99,7 +99,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <div className="caldet">
         <div className="row"><b>{dateLabel(sel)}</b>{s.state !== 'none' && <span className={`stt s-${s.state}`}>{STATE_LABEL[s.state]}</span>}
           {s.segments.length > 1 && <span className="flag f-re">{s.segments.length}回に分けて勤務</span>}</div>
-        <div className="cdrow"><span className="sub">シフト</span><span className="num">{sh ? (sh.parts ? <>{partsText(sh.parts)}<span className="sub" style={{ fontFamily: 'inherit' }}>（間の時間は勤務に入りません）</span></> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : 'なし'}</span></div>
+        <div className="cdrow"><span className="sub">シフト</span><span className="num">{sh ? (isSplit(sh.parts) ? <>{partsText(sh.parts)}<span className="sub" style={{ fontFamily: 'inherit' }}>（間の時間は勤務に入りません）</span></> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : 'なし'}</span></div>
         <div className="cdrow"><span className="sub">打刻</span><span><PunchLog punches={ps} /></span></div>
         {s.firstIn !== null && <div className="cdrow"><span className="sub">実働</span><span className="num">{hoursLabel(s.workMin)}{s.breakMin ? `（休憩 ${s.breakMin}分）` : ''}</span></div>}
         {myReqs.map((q) => (

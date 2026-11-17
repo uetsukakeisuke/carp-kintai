@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchStaff, nameKey, parseCsv, parseDate, parseRanges, parseShiftTable, decodeText } from './shift-import';
+import { deriveWages, matchStaff, nameKey, parseCsv, parseDate, parseRanges, parseShiftTable, decodeText } from './shift-import';
 import { planCost } from './calc';
 
 // スマレジ「シフト表」の Excel と同じ形（名前は架空）
@@ -49,13 +49,13 @@ describe('スマレジのシフト表', () => {
   it('分かれた時間帯はそのまま。続いている時間帯は1つ', () => {
     const h = r.rows[1].days[0];
     expect(h).toEqual({ date: '2026-12-01', start: 900, end: 1095, parts: [[900, 990], [1005, 1095]] });
-    expect(r.rows[2].days[0]).toEqual({ date: '2026-12-08', start: 600, end: 900, parts: null });
+    expect(r.rows[2].days[0]).toEqual({ date: '2026-12-08', start: 600, end: 900, parts: [[600, 900]] });
   });
-  it('時間はスマレジの計と同じ（分割の間は入れない。6時間を超える続いたシフトは休憩を引く）', () => {
+  it('時間はスマレジの計と同じ（分割の間は入れない。休憩を自動で引かない）', () => {
     const hours = (i: number) => r.rows[i].days.reduce((a, d) => a + planCost(d, 0).workMin, 0) / 60;
     expect(hours(1)).toBe(6);
     expect(hours(3)).toBe(7.5);
-    expect(hours(2)).toBe(5 + 7.25); // 10:00〜18:00（8時間）は休憩45分を引いて7.25時間（スマレジは8時間で数える）
+    expect(hours(2)).toBe(5 + 8); // 10:00〜18:00 はスマレジどおり8時間
   });
   it('読めないマスは知らせて飛ばす', () => {
     const g = GRID.map((x) => [...x]);
@@ -76,7 +76,7 @@ describe('1行1シフトの CSV', () => {
     if (typeof r === 'string') throw new Error(r);
     expect(r.format).toBe('list');
     expect(r.rows[0].days[0]).toEqual({ date: '2026-12-01', start: 540, end: 1020, parts: [[540, 720], [780, 1020]] });
-    expect(r.rows[1]).toEqual({ name: '試験 花子', days: [{ date: '2026-12-02', start: 1080, end: 1410, parts: null }] });
+    expect(r.rows[1]).toEqual({ name: '試験 花子', days: [{ date: '2026-12-02', start: 1080, end: 1410, parts: [[1080, 1410]] }] });
   });
   it('CSV の引用符・改行', () => {
     expect(parseCsv('a,"b\nc","d""e"\n1,2,3')).toEqual([['a', 'b\nc', 'd"e'], ['1', '2', '3']]);
@@ -99,5 +99,31 @@ describe('名前あわせ', () => {
   it('決まらないときは null', () => {
     expect(matchStaff('同名', staff)).toBeNull();
     expect(matchStaff('いない人', staff)).toBeNull();
+  });
+});
+
+describe('スマレジの人件費から時給を計算', () => {
+  // 日ごとの人件費＝その日の「時間×時給」の合計（架空の時給：A 1,300円・B 1,200円・C 1,150円）
+  const days = (xs: [number, string][]) => Object.fromEntries(xs);
+  const g = [
+    HEAD,
+    row('A', days([[1, '09:00 ~ 12:00'], [2, '13:00 ~ 15:00'], [4, '10:00 ~ 11:30']])),
+    row('B', days([[1, '10:00 ~ 14:00'], [3, '09:00 ~ 10:00\n10:15 ~ 12:15']])),
+    row('C', days([[2, '09:00 ~ 10:30'], [3, '13:00 ~ 14:00'], [5, '09:00 ~ 17:00']])),
+    row('D', {}),
+    ['人件費(円)', ...Array.from({ length: 31 }, (_, i) => String([0, 8700, 4325, 4750, 1950, 9200][i + 1] ?? 0)), '28925'],
+  ];
+  it('日ごとの式から1人ずつの時給が決まる（シフトのない人は null）', () => {
+    const r = parseShiftTable(g);
+    if (typeof r === 'string') throw new Error(r);
+    expect(deriveWages(r.rows, r.dayCost)).toEqual([1300, 1200, 1150, null]);
+  });
+  it('人件費の行がない・式に合わないときは null', () => {
+    const r = parseShiftTable(g.slice(0, 5));
+    if (typeof r === 'string') throw new Error(r);
+    expect(deriveWages(r.rows, r.dayCost)).toEqual([null, null, null, null]);
+    const bad = parseShiftTable([...g.slice(0, 5), ['人件費(円)', ...Array.from({ length: 31 }, () => '999'), '']]);
+    if (typeof bad === 'string') throw new Error(bad);
+    expect(deriveWages(bad.rows, bad.dayCost)).toEqual([null, null, null, null]);
   });
 });

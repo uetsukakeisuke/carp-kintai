@@ -136,7 +136,7 @@ export async function saveHopesAction(year: number, month: number, days: { date:
 export async function saveShiftAction(storeId: number, staffId: number, date: string, start: number, end: number, parts?: unknown): Promise<Result> {
   const u = await requireManager();
   if (!isDate(date) || !isMin(start) || !isMin(end) || end <= start) return { ok: false, error: '時間を確認してください' };
-  // 分割シフトは、時間帯が開始〜終了とぴったり合うときだけそのまま残す
+  // 時間帯つきのシフト（スマレジから取り込んだもの）は、時間帯が開始〜終了とぴったり合うときだけそのまま残す
   const ps = cleanParts(parts ?? null);
   const keep = ps && ps !== 'bad' && ps[0][0] === start && ps[ps.length - 1][1] === end ? ps : null;
   await upsertShift(u.id, { storeId, staffId, date, start, end, parts: keep });
@@ -166,14 +166,16 @@ export async function previewShiftImportAction(form: FormData): Promise<ShiftImp
   const r = await previewImport(storeId, new Uint8Array(await f.arrayBuffer()));
   return typeof r === 'string' ? { ok: false, error: r } : { ok: true, ...r };
 }
-export async function applyShiftImportAction(storeId: number, ym: string, entries: unknown, staffIds: unknown, mode: string): Promise<Result> {
+export async function applyShiftImportAction(storeId: number, ym: string, entries: unknown, staffIds: unknown, mode: string, newStaff: unknown = []): Promise<Result> {
   const u = await requireManager();
   if (!(await listStores()).some((s) => s.id === Number(storeId))) return { ok: false, error: '店舗が見つかりません' };
-  const r = await applyImport(u.id, Number(storeId), String(ym), entries, staffIds, mode === 'fill' ? 'fill' : 'replace');
+  const r = await applyImport(u.id, Number(storeId), String(ym), entries, staffIds, mode === 'fill' ? 'fill' : 'replace', newStaff);
   if (typeof r === 'string') return { ok: false, error: r };
   revalidatePath('/manage/shifts');
+  if (r.created.length) revalidatePath('/manage/staff');
   const parts = [r.added && `${r.added}件を入れ`, r.changed && `${r.changed}件の時間を変え`, r.removed && `${r.removed}件を外し`].filter(Boolean);
-  return { ok: true, message: parts.length ? `${Number(ym.slice(5))}月の下書きに、${parts.join('、')}ました` : '変わったところはありませんでした' };
+  const who = r.created.length ? `${r.created.join('、')}さんをスタッフに登録しました。` : '';
+  return { ok: true, message: who + (parts.length ? `${Number(ym.slice(5))}月の下書きに、${parts.join('、')}ました` : 'シフトは変わったところはありませんでした') };
 }
 export async function setHopePeriodAction(storeId: number, year: number, month: number, open: string, deadline: string): Promise<Result> {
   const u = await requireManager();

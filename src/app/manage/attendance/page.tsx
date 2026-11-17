@@ -8,7 +8,7 @@ import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { ActionButton } from '@/components/ActionButton';
 import { decideCorrectionAction } from '@/app/actions';
 import { EditPunchesButton, AddAttendance } from './PunchEditor';
-import { partsText } from '@/lib/shift-parts';
+import { partsText, isSplit } from '@/lib/shift-parts';
 
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ d?: string; store?: string }> }) {
   await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
@@ -104,7 +104,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           {rows.map(({ s, ps, sh, sum, cost, flags }) => (
             <tr key={s.id}>
               <td className="head"><b>{s.name}</b></td>
-              <td data-label="予定" className="num">{sh ? (sh.parts ? <span title="時間帯が分かれたシフト">{partsText(sh.parts, ' ')}</span> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : '—'}</td>
+              <td data-label="予定" className="num">{sh ? (isSplit(sh.parts) ? <span title="時間帯が分かれたシフト">{partsText(sh.parts, ' ')}</span> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : '—'}</td>
               <td data-label="打刻" className="wrap full"><span style={{ marginLeft: 'auto' }}><PunchLog punches={ps} /></span></td>
               <td data-label="休憩" className={`num${sum.breakMin ? '' : ' hide-sp'}`}>{sum.breakMin ? `${sum.breakMin}分` : '—'}</td>
               <td data-label="実働" className={`num${sum.firstIn !== null ? '' : ' hide-sp'}`}>{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>
