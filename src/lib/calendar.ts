@@ -4,6 +4,7 @@ import { sql, audit } from './db';
 import { addDays, jstParts } from './time';
 import { tasksForStaff } from './tasks';
 import { buildIcs } from './ics';
+import { readParts } from './data';
 
 // 自分のカレンダーに入れるURL（/cal/○○.ics）。シフト（公開済み）と予定表（全体＋自分の作業）を返す。
 const PAST = 31, AHEAD_SHIFT = 120, AHEAD_TASK = 60;
@@ -29,14 +30,14 @@ export async function icsFor(token: string, host: string): Promise<string | null
   if (!s) return null;
   const today = jstParts().date;
   const [shifts, tasks] = await Promise.all([
-    sql<{ work_date: string; start_min: number; end_min: number; store: string }[]>`
-      select p.work_date, p.start_min, p.end_min, st.name as store from published_shifts p join stores st on st.id = p.store_id
+    sql<{ work_date: string; start_min: number; end_min: number; store: string; parts: unknown }[]>`
+      select p.work_date, p.start_min, p.end_min, st.name as store, to_jsonb(p)->'parts' as parts from published_shifts p join stores st on st.id = p.store_id
       where p.staff_id = ${s.id} and p.work_date between ${addDays(today, -PAST)} and ${addDays(today, AHEAD_SHIFT)} order by p.work_date, p.start_min`,
     tasksForStaff(s.id, addDays(today, -14), addDays(today, AHEAD_TASK)),
   ]);
   return buildIcs({
     staffId: s.id, name: s.name, now: new Date(), host,
-    shifts: shifts.map((x) => ({ date: x.work_date, start: x.start_min, end: x.end_min, store: x.store })),
+    shifts: shifts.map((x) => ({ date: x.work_date, start: x.start_min, end: x.end_min, store: x.store, parts: readParts(x.parts) })),
     tasks: tasks.map((t) => ({ id: t.id, date: t.work_date, kind: t.kind, title: t.title, note: t.note, atMin: t.at_min, done: !!t.done_at, mine: t.staff_id !== null })),
   });
 }

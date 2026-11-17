@@ -1,5 +1,6 @@
 import 'server-only';
 import { sql } from './db';
+import { readParts } from './data';
 import { addDays, jstParts } from './time';
 
 // 外部向けAPI（v1）で返すデータ。時給・暗証番号・顔・明細・下書きのシフトは含めない
@@ -34,13 +35,15 @@ export async function v1Staff() {
 }
 
 export async function v1Shifts(from: string, to: string) {
-  const rows = await sql<{ work_date: string; staff_id: number; name: string; store: string; start_min: number; end_min: number }[]>`
-    select p.work_date, p.staff_id, s.name, st.name as store, p.start_min, p.end_min
+  const rows = await sql<{ work_date: string; staff_id: number; name: string; store: string; start_min: number; end_min: number; parts: unknown }[]>`
+    select p.work_date, p.staff_id, s.name, st.name as store, p.start_min, p.end_min, to_jsonb(p)->'parts' as parts
     from published_shifts p join staff s on s.id = p.staff_id join stores st on st.id = p.store_id
     where p.work_date between ${from} and ${to} and s.active order by p.work_date, p.start_min, p.staff_id`;
   return rows.map((r) => ({
     date: r.work_date, staff_id: r.staff_id, name: r.name, store: r.store,
     start: hhmm(r.start_min), end: hhmm(r.end_min), start_at: at(r.work_date, r.start_min), end_at: at(r.work_date, r.end_min),
+    // 時間帯が分かれたシフトのときだけ、時間帯の一覧（分かれていなければ null）
+    parts: readParts(r.parts)?.map(([a, b]) => ({ start: hhmm(a), end: hhmm(b), start_at: at(r.work_date, a), end_at: at(r.work_date, b) })) ?? null,
   }));
 }
 

@@ -2,6 +2,7 @@ import 'server-only';
 import { sql, audit } from './db';
 import { canPunch, decideWorkDay, type Punch, type PunchKind, type WageRate } from './calc';
 import { addDays, DAY_BOUNDARY_MIN, jstParts, ymd, daysInMonth } from './time';
+import { cleanParts, type Part } from './shift-parts';
 
 export interface Store { id: number; name: string; sort: number; active: boolean; budget_weekday: number; budget_friday: number; budget_weekend: number }
 export interface StaffRow {
@@ -109,7 +110,23 @@ export async function decideCorrection(actorId: number, id: number, approve: boo
 }
 
 // ---------------- シフト ----------------
-export interface ShiftCell { staff_id: number; work_date: string; start_min: number; end_min: number }
+export interface ShiftCell { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: Part[] | null }
+
+// 分割シフトの列（parts）は db/update-2026-11-17-shifts.sql で足す。足す前でも画面が壊れないよう、
+// 読むときは to_jsonb(行)->'parts'（列がなければ null）、書くときは列があるときだけ書く。
+let partsCol: { ok: boolean; at: number } | null = null;
+export async function partsReady(): Promise<boolean> {
+  if (partsCol && (partsCol.ok || Date.now() - partsCol.at < 60_000)) return partsCol.ok;
+  try {
+    const [r] = await sql<{ n: number }[]>`select count(*)::int as n from information_schema.columns
+      where table_schema = current_schema() and table_name in ('shifts', 'published_shifts') and column_name = 'parts'`;
+    partsCol = { ok: r.n === 2, at: Date.now() };
+  } catch { partsCol = { ok: false, at: Date.now() }; }
+  return partsCol.ok;
+}
+/** データベースから読んだ parts を整える（壊れた値は続いたシフトとして扱う） */
+export const readParts = (v: unknown): Part[] | null => { const c = cleanParts(v); return c === 'bad' ? null : c; };
+const withParts = <T extends { parts?: unknown }>(rows: T[]) => rows.map((r) => ({ ...r, parts: readParts(r.parts) }));
 
 export async function monthBundle(storeId: number, year: number, month: number) {
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
@@ -118,8 +135,8 @@ export async function monthBundle(storeId: number, year: number, month: number) 
   const staff = await listStaff({ storeId });
   const ids = staff.map((s) => s.id);
   const [drafts, published, hopes, subs, budgets, rates, mw] = await Promise.all([
-    sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min from shifts where store_id = ${storeId} and work_date between ${from} and ${to}`,
-    sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min from published_shifts where store_id = ${storeId} and work_date between ${from} and ${to}`,
+    sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(s)->'parts' as parts from shifts s where store_id = ${storeId} and work_date between ${from} and ${to}`.then(withParts),
+    sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(p)->'parts' as parts from published_shifts p where store_id = ${storeId} and work_date between ${from} and ${to}`.then(withParts),
     ids.length ? sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min from shift_hopes where staff_id = any(${ids}) and work_date between ${from} and ${to}` : Promise.resolve([] as ShiftCell[]),
     ids.length ? sql<{ staff_id: number; submitted_at: Date }[]>`select staff_id, submitted_at from hope_submissions where staff_id = any(${ids}) and year = ${year} and month = ${month}` : Promise.resolve([]),
     sql<{ work_date: string; amount: number }[]>`select work_date, amount from daily_budgets where store_id = ${storeId} and work_date between ${from} and ${to}`,
@@ -136,11 +153,16 @@ export async function ensurePeriod(storeId: number, year: number, month: number)
   return p;
 }
 
-export async function upsertShift(actorId: number, c: { storeId: number; staffId: number; date: string; start: number; end: number } | { storeId: number; staffId: number; date: string; delete: true }) {
+export async function upsertShift(actorId: number, c: { storeId: number; staffId: number; date: string; start: number; end: number; parts?: Part[] | null } | { storeId: number; staffId: number; date: string; delete: true }) {
   const [y, m] = c.date.split('-').map(Number);
   const p = await ensurePeriod(c.storeId, y, m);
   if ('delete' in c) await sql`delete from shifts where staff_id = ${c.staffId} and work_date = ${c.date}`;
-  else await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end})
+  else if (await partsReady()) {
+    // 時間を変えたら続いたシフトになる（分割のままにするのは、時間帯をそのまま渡されたときだけ）
+    const parts = c.parts && c.parts.length > 1 ? c.parts : null;
+    await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min, parts) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end}, ${parts ? sql.json(parts) : null})
+      on conflict (staff_id, work_date) do update set store_id = excluded.store_id, start_min = excluded.start_min, end_min = excluded.end_min, parts = excluded.parts, updated_at = now()`;
+  } else await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end})
       on conflict (staff_id, work_date) do update set store_id = excluded.store_id, start_min = excluded.start_min, end_min = excluded.end_min, updated_at = now()`;
   if (p.status === 'published') await sql`update shift_periods set status = 'changed' where id = ${p.id}`;
   await audit(actorId, 'shift_edit', c);
@@ -149,9 +171,12 @@ export async function upsertShift(actorId: number, c: { storeId: number; staffId
 export async function publishMonth(actorId: number, storeId: number, year: number, month: number) {
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
   await ensurePeriod(storeId, year, month);
+  const withP = await partsReady();
   await sql.begin(async (tx) => {
     await tx`delete from published_shifts where store_id = ${storeId} and work_date between ${from} and ${to}`;
-    await tx`insert into published_shifts (staff_id, work_date, store_id, start_min, end_min)
+    if (withP) await tx`insert into published_shifts (staff_id, work_date, store_id, start_min, end_min, parts)
+      select staff_id, work_date, store_id, start_min, end_min, parts from shifts where store_id = ${storeId} and work_date between ${from} and ${to}`;
+    else await tx`insert into published_shifts (staff_id, work_date, store_id, start_min, end_min)
       select staff_id, work_date, store_id, start_min, end_min from shifts where store_id = ${storeId} and work_date between ${from} and ${to}`;
     await tx`update shift_periods set status = 'published', published_at = now() where store_id = ${storeId} and year = ${year} and month = ${month}`;
   });
@@ -160,11 +185,11 @@ export async function publishMonth(actorId: number, storeId: number, year: numbe
 
 /** 公開済みシフト（スタッフ向け）。店舗をまたいで本人分を取りたいときは storeId を省略 */
 export async function publishedShifts(from: string, to: string, opts: { storeId?: number; staffId?: number } = {}) {
-  return sql<(ShiftCell & { store_id: number })[]>`select staff_id, work_date, store_id, start_min, end_min from published_shifts
+  return sql<(ShiftCell & { store_id: number })[]>`select staff_id, work_date, store_id, start_min, end_min, to_jsonb(p)->'parts' as parts from published_shifts p
     where work_date between ${from} and ${to}
       and (${opts.storeId ?? null}::int is null or store_id = ${opts.storeId ?? null})
       and (${opts.staffId ?? null}::int is null or staff_id = ${opts.staffId ?? null})
-    order by work_date, start_min`;
+    order by work_date, start_min`.then(withParts);
 }
 
 // ---------------- 管理者による勤怠の直接修正 ----------------

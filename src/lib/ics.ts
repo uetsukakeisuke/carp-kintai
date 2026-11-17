@@ -1,7 +1,7 @@
 // iCalendar（.ics）を組み立てる。Googleカレンダー・iPhoneのカレンダー・Outlook などが読める形式（RFC 5545）。
 // 時刻はすべて日本時間（Asia/Tokyo）。データベースに触れない純粋な関数だけを置く。
 
-export type IcsShift = { date: string; start: number; end: number; store: string };
+export type IcsShift = { date: string; start: number; end: number; store: string; parts?: [number, number][] | null };
 export type IcsTask = { id: number; date: string; kind: 'task' | 'note'; title: string; note: string | null; atMin: number | null; done: boolean; mine: boolean };
 
 /** 文字の中の記号を iCalendar の決まりで書き換える */
@@ -44,10 +44,15 @@ export function buildIcs(o: { staffId: number; name: string; shifts: IcsShift[];
   const uid = (k: string) => `${k}@${o.host}`;
 
   for (const s of o.shifts) {
-    L.push('BEGIN:VEVENT', `UID:${uid(`shift-${o.staffId}-${s.date}`)}`, `DTSTAMP:${ds}`,
-      `DTSTART;TZID=Asia/Tokyo:${local(s.date, s.start)}`, `DTEND;TZID=Asia/Tokyo:${local(s.date, s.end)}`,
-      `SUMMARY:${esc(`シフト（${s.store}）`)}`, `LOCATION:${esc(s.store)}`,
-      `DESCRIPTION:${esc(`${hm(s.start)}〜${hm(s.end)}　カープ勤怠のシフト（公開済み）`)}`, 'TRANSP:OPAQUE', 'END:VEVENT');
+    // 時間帯が分かれたシフトは、時間帯ごとに1件（1件目は今までと同じ UID のまま）
+    const parts = s.parts && s.parts.length > 1 ? s.parts : [[s.start, s.end] as [number, number]];
+    const all = parts.map(([a, b]) => `${hm(a)}〜${hm(b)}`).join('・');
+    parts.forEach(([a, b], i) => {
+      L.push('BEGIN:VEVENT', `UID:${uid(`shift-${o.staffId}-${s.date}${i ? `-${i + 1}` : ''}`)}`, `DTSTAMP:${ds}`,
+        `DTSTART;TZID=Asia/Tokyo:${local(s.date, a)}`, `DTEND;TZID=Asia/Tokyo:${local(s.date, b)}`,
+        `SUMMARY:${esc(`シフト（${s.store}）${parts.length > 1 ? ` ${i + 1}/${parts.length}` : ''}`)}`, `LOCATION:${esc(s.store)}`,
+        `DESCRIPTION:${esc(`${all}　カープ勤怠のシフト（公開済み）`)}`, 'TRANSP:OPAQUE', 'END:VEVENT');
+    });
   }
   // 時刻のある予定は1件ずつ（30分）
   for (const t of o.tasks.filter((x) => x.atMin !== null)) {

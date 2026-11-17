@@ -6,9 +6,12 @@ import { planCost, wageAt, minWageAt, type WageRate, type MinWage } from '@/lib/
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
 import { AutoDraft } from './AutoDraft';
+import { ShiftImport } from './ShiftImport';
+import { partsOf, partsText, gapsOf, type Part } from '@/lib/shift-parts';
 import type { Window } from '@/lib/forecast';
 
-type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number };
+type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: Part[] | null };
+type Sh = { s: number; e: number; parts?: Part[] | null };
 type Staff = { id: number; name: string; employment: string; transport: number; monthly?: boolean };
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const PATTERNS = [{ n: '早番', s: 540, e: 900 }, { n: '中番', s: 660, e: 1020 }, { n: '遅番', s: 1020, e: 1320 }, { n: 'ラスト', s: 1080, e: 1440 }, { n: '通し', s: 600, e: 1140 }, { n: 'ランチ', s: 660, e: 900 }];
@@ -21,6 +24,8 @@ const man1 = (n: number) => (n / 10000).toFixed(1); // 万円（小数1桁）
 const TL_S = 8 * 60, TL_E = 26 * 60; // 日ごとのバーの範囲（8時〜翌2時）
 const pct = (m: number) => ((Math.min(Math.max(m, TL_S), TL_E) - TL_S) / (TL_E - TL_S)) * 100;
 type View = 'day' | 'week' | 'month';
+/** 分割シフトを分割のまま保存するか（開始・終了が元の時間帯の端と同じとき） */
+const keepParts = (x: { s: number; e: number; parts?: Part[] | null }) => !!x.parts && x.parts.length > 1 && x.parts[0][0] === x.s && x.parts[x.parts.length - 1][1] === x.e;
 
 export function ShiftBoard(p: {
   store: { id: number; name: string; budget: number[] }; year: number; month: number; status: string;
@@ -32,10 +37,10 @@ export function ShiftBoard(p: {
   const nd = new Date(p.year, p.month, 0).getDate();
   const key = (d: number) => `${p.year}-${String(p.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   const wd = (d: number) => new Date(p.year, p.month - 1, d).getDay();
-  const [shifts, setShifts] = useState<Record<string, { s: number; e: number }>>(() => Object.fromEntries(p.drafts.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min }])));
+  const [shifts, setShifts] = useState<Record<string, Sh>>(() => Object.fromEntries(p.drafts.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min, parts: c.parts ?? null }])));
   const [status, setStatus] = useState(p.status);
   const hopes = useMemo(() => Object.fromEntries(p.hopes.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min }])), [p.hopes]);
-  const [ed, setEd] = useState<{ staffId: number; d: number; s: number; e: number; had: boolean } | null>(null);
+  const [ed, setEd] = useState<{ staffId: number; d: number; s: number; e: number; had: boolean; parts?: Part[] | null } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [view, setView] = useState<View>('month');
   const [sel, setSel] = useState(1);
@@ -70,7 +75,7 @@ export function ShiftBoard(p: {
     return `${yen(first)}→${yen(last)}${change ? `（${Number(change.effective_from.slice(8, 10))}日〜）` : ''}`;
   };
   const budgetOf = (d: number) => { const o = p.budgets.find((b) => b.work_date === key(d)); if (o) return o.amount; const w = wd(d); return w === 0 || w === 6 ? p.store.budget[2] : w === 5 ? p.store.budget[1] : p.store.budget[0]; };
-  const costOf = (st: Staff, d: number, sh: { s: number; e: number }) => planCost({ start: sh.s, end: sh.e }, rate(st.id, key(d)));
+  const costOf = (st: Staff, d: number, sh: Sh) => planCost({ start: sh.s, end: sh.e, parts: sh.parts }, rate(st.id, key(d)));
   const get = (id: number, d: number) => shifts[`${id}|${key(d)}`];
   const submittedSet = new Set(p.submitted);
   const mismatch = (id: number, d: number) => { const sh = get(id, d); if (!sh) return false; const h = hopes[`${id}|${key(d)}`]; if (!h) return submittedSet.has(id); return sh.s < h.s || sh.e > h.e; };
@@ -96,17 +101,19 @@ export function ShiftBoard(p: {
 
   const open = (staffId: number, d: number) => {
     const cur = get(staffId, d), h = hopes[`${staffId}|${key(d)}`];
-    setEd({ staffId, d, s: cur?.s ?? h?.s ?? 600, e: cur?.e ?? h?.e ?? 1020, had: !!cur });
+    setEd({ staffId, d, s: cur?.s ?? h?.s ?? 600, e: cur?.e ?? h?.e ?? 1020, had: !!cur, parts: cur?.parts ?? null });
   };
   const save = (del = false) => {
     if (!ed) return;
     const { staffId, d, s, e } = ed;
+    // 分割シフトは、開始・終了を変えなければ分割のまま（変えたら続いたシフトになる）
+    const parts = keepParts(ed) ? ed.parts! : null;
     const k = `${staffId}|${key(d)}`, before = shifts[k];
-    setShifts((x) => { const n = { ...x }; if (del) delete n[k]; else n[k] = { s, e }; return n; });
+    setShifts((x) => { const n = { ...x }; if (del) delete n[k]; else n[k] = { s, e, parts }; return n; });
     if (status === 'published') setStatus('changed');
     setEd(null);
     start(async () => {
-      const r = await call(() => (del ? deleteShiftAction(p.store.id, staffId, key(d)) : saveShiftAction(p.store.id, staffId, key(d), s, e)));
+      const r = await call(() => (del ? deleteShiftAction(p.store.id, staffId, key(d)) : saveShiftAction(p.store.id, staffId, key(d), s, e, parts)));
       if (!r.ok) { toast(r.error); setShifts((x) => { const n = { ...x }; if (before) n[k] = before; else delete n[k]; return n; }); }
     });
   };
@@ -128,6 +135,7 @@ export function ShiftBoard(p: {
     setShifts((x) => { const n = { ...x }; for (const w of ws) delete n[`${w.staffId}|${w.date}`]; return n; });
     if (status === 'published') setStatus('changed');
   };
+  const importer = <ShiftImport storeId={p.store.id} year={p.year} month={p.month} />;
   const auto = (compact?: boolean) => <AutoDraft storeId={p.store.id} year={p.year} month={p.month} names={names} onAdded={addAuto} onRemoved={removeAuto} compact={compact} />;
 
   const ratio = budget ? totals.cost / budget : 0;
@@ -153,6 +161,7 @@ export function ShiftBoard(p: {
         <div className="card" style={{ display: 'grid', gap: 8, alignContent: 'center' }}>{pill}
           <span className={`savestate${pending ? '' : ' ok'}`} aria-live="polite">{pending ? '保存中…' : '✓ 入力はすべて保存済み'}</span>
           {auto()}
+          {importer}
           {publishBtn}</div>
       </section>
       {/* スマホ：1枚にまとめる */}
@@ -161,7 +170,7 @@ export function ShiftBoard(p: {
         <div className="ssum-cost"><b className="num">{yen(totals.cost)}</b><span className="sub">／予算 {yen(budget)}</span><b className={`num ssum-pct ${ratio > 1 ? 'bad-t' : 'ok-t'}`}>{(ratio * 100).toFixed(0)}%</b></div>
         <div className={`budgetbar${ratio > 1 ? ' over' : ''}`} style={{ marginTop: 0 }}><i style={{ width: `${Math.min(ratio, 1) * 100}%` }} /></div>
         <div className="ssum-meta"><span>予算超過 <b className={overDays ? 'bad-t' : ''}>{overDays}日</b></span><span>労働 <b>{(totals.work / 60).toFixed(0)}h</b></span><span>希望外 <b className={mis ? 'warn-t' : ''}>{mis}件</b></span><span>入力 <b>{filled}/{nd}日</b></span></div>
-        <div className="ssum-btns">{auto(true)}{publishBtn}</div>
+        <div className="ssum-btns">{auto(true)}{importer}{publishBtn}</div>
       </section>
 
       <div className="legend">
@@ -200,11 +209,11 @@ export function ShiftBoard(p: {
                 <div className="bars-axis" aria-hidden><span />{<div>{ticks.map((h) => <i key={h} style={{ left: `${pct(h * 60)}%` }}>{h}</i>)}</div>}</div>
                 {people.map(({ st, sh, h }) => (
                   <button key={st.id} type="button" role="listitem" className={`barrow${sh ? ' on' : ''}${mismatch(st.id, d) ? ' mis' : ''}`} onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                    <span className="bn"><b>{st.name}</b><small>{sh ? `${hm(sh.s)}〜${hm(sh.e)}` : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
+                    <span className="bn"><b>{st.name}</b><small>{sh ? (sh.parts ? partsText(sh.parts) : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
                     <span className="bt">
                       {ticks.map((x) => <i key={x} className="grid" style={{ left: `${pct(x * 60)}%` }} />)}
                       {h && <i className="hb" style={{ left: `${pct(h.s)}%`, width: `${pct(h.e) - pct(h.s)}%` }} />}
-                      {sh ? <i className="sb" style={{ left: `${pct(sh.s)}%`, width: `${pct(sh.e) - pct(sh.s)}%` }} /> : <i className="plus">＋</i>}
+                      {sh ? partsOf({ start: sh.s, end: sh.e, parts: sh.parts }).map(([a, b]) => <i key={a} className="sb" style={{ left: `${pct(a)}%`, width: `${pct(b) - pct(a)}%` }} />) : <i className="plus">＋</i>}
                     </span>
                   </button>
                 ))}
@@ -245,7 +254,7 @@ export function ShiftBoard(p: {
                         return (
                           <td key={d} className={`${h ? 'hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                             <button type="button" onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                              {sh ? <span className="wchip num"><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="whope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                              {sh ? <span className={`wchip num${sh.parts ? ' split' : ''}`} title={sh.parts ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="whope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
                             </button>
                           </td>);
                       })}
@@ -302,7 +311,7 @@ export function ShiftBoard(p: {
                       return (
                         <td key={d} className={`c${h ? ' hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                           <button onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                            {sh ? <span className="mchip num"><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="mhope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                            {sh ? <span className={`mchip num${sh.parts ? ' split' : ''}`} title={sh.parts ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="mhope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
                           </button>
                         </td>);
                     })}
@@ -319,13 +328,14 @@ export function ShiftBoard(p: {
           </div>
         </div>
       </>}
-      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。</p>
+      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。時間帯が分かれたシフト（スマレジから取り込んだ「8:45〜10:15・10:30〜12:00」など。マスに点線の印）は、間の時間を勤務に入れません。</p>
 
       {ed && (() => {
         const st = p.staff.find((x) => x.id === ed.staffId)!;
         const h = hopes[`${ed.staffId}|${key(ed.d)}`];
         const valid = ed.e > ed.s;
-        const r = valid ? costOf(st, ed.d, { s: ed.s, e: ed.e }) : null;
+        const kept = keepParts(ed);
+        const r = valid ? costOf(st, ed.d, { s: ed.s, e: ed.e, parts: kept ? ed.parts : null }) : null;
         const old = get(ed.staffId, ed.d), oldC = old ? costOf(st, ed.d, old).total : 0;
         const after = totals.cost - oldC + (r?.total ?? 0), dayAfter = totals.dayCost[ed.d] - oldC + (r?.total ?? 0);
         const outside = valid && (h ? ed.s < h.s || ed.e > h.e : submittedSet.has(st.id));
@@ -345,11 +355,18 @@ export function ShiftBoard(p: {
                 <label htmlFor="ee" className="sub">終了</label>
                 <select id="ee" className="sel" value={ed.e} onChange={(e) => setEd({ ...ed, e: Number(e.target.value) })}>{TIMES.map((x) => <option key={x} value={x}>{hm(x)}</option>)}</select>
               </div>
+              {ed.parts && (
+                <div className={`hopebox ${kept ? 'ok' : 'ng'}`} style={{ marginTop: 8 }}>
+                  {kept
+                    ? <>時間帯が分かれたシフト：<b className="num">{partsText(ed.parts)}</b>（間の {partsText(gapsOf(ed.parts))} は勤務に入れません）</>
+                    : <>開始・終了を変えたので、{hm(ed.s)}〜{hm(ed.e)} の続いたシフトになります（分かれていた時間帯：{partsText(ed.parts)}）</>}
+                </div>
+              )}
               {!valid && <p className="err">終了時刻を開始時刻より後にしてください。</p>}
               {outside && <p className="err" style={{ color: 'var(--warn)' }}>出勤希望の日・時間帯から外れています。本人に確認してから確定してください。</p>}
               {r && (
                 <div className="calc">
-                  <span>{r.breakMin ? `実働（休憩${r.breakMin}分を控除）` : '実働'}</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
+                  <span>{r.breakMin ? (kept ? `実働（間の${r.breakMin}分を除く）` : `実働（休憩${r.breakMin}分を控除）`) : '実働'}</span><span className="r">{(r.workMin / 60).toFixed(2).replace(/\.?0+$/, '')}時間</span>
                   <span>時給</span><span className="r">{yen(rate(st.id, key(ed.d)))}</span>
                   <b>このシフトの人件費（時給×実働）</b><b className="r">{yen(r.total)}</b>
                 </div>

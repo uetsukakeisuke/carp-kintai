@@ -6,8 +6,10 @@ import {
   hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser, requireAdmin,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
-import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches } from '@/lib/data';
+import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores } from '@/lib/data';
 import { minWageAt, wageAt, canPunch, type PunchKind } from '@/lib/calc';
+import { cleanParts } from '@/lib/shift-parts';
+import { previewImport, applyImport, MAX_FILE as MAX_IMPORT_FILE, type ImportPreview } from '@/lib/shift-import-data';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
 import { rotateLedgerSecret, setLedgerSheet, sheetIdOf } from '@/lib/ledger';
@@ -131,10 +133,13 @@ export async function saveHopesAction(year: number, month: number, days: { date:
 }
 
 // ---------- シフト作成（店長） ----------
-export async function saveShiftAction(storeId: number, staffId: number, date: string, start: number, end: number): Promise<Result> {
+export async function saveShiftAction(storeId: number, staffId: number, date: string, start: number, end: number, parts?: unknown): Promise<Result> {
   const u = await requireManager();
   if (!isDate(date) || !isMin(start) || !isMin(end) || end <= start) return { ok: false, error: '時間を確認してください' };
-  await upsertShift(u.id, { storeId, staffId, date, start, end });
+  // 分割シフトは、時間帯が開始〜終了とぴったり合うときだけそのまま残す
+  const ps = cleanParts(parts ?? null);
+  const keep = ps && ps !== 'bad' && ps[0][0] === start && ps[ps.length - 1][1] === end ? ps : null;
+  await upsertShift(u.id, { storeId, staffId, date, start, end, parts: keep });
   return { ok: true };
 }
 export async function deleteShiftAction(storeId: number, staffId: number, date: string): Promise<Result> {
@@ -148,6 +153,27 @@ export async function publishAction(storeId: number, year: number, month: number
   await publishMonth(u.id, storeId, year, month);
   revalidatePath('/manage/shifts');
   return { ok: true, message: `${month}月のシフトを公開しました。スタッフ全員が見られます` };
+}
+// ---------- シフトの取り込み（スマレジの Excel・CSV） ----------
+export type ShiftImportPreviewReply = ({ ok: true } & ImportPreview) | { ok: false; error: string };
+export async function previewShiftImportAction(form: FormData): Promise<ShiftImportPreviewReply> {
+  await requireManager();
+  const storeId = Number(form.get('storeId'));
+  const f = form.get('file');
+  if (!(f instanceof File) || !f.size) return { ok: false, error: 'ファイルを選んでください' };
+  if (f.size > MAX_IMPORT_FILE) return { ok: false, error: 'ファイルが大きすぎます（3MBまで）' };
+  if (!(await listStores()).some((s) => s.id === storeId)) return { ok: false, error: '店舗が見つかりません' };
+  const r = await previewImport(storeId, new Uint8Array(await f.arrayBuffer()));
+  return typeof r === 'string' ? { ok: false, error: r } : { ok: true, ...r };
+}
+export async function applyShiftImportAction(storeId: number, ym: string, entries: unknown, staffIds: unknown, mode: string): Promise<Result> {
+  const u = await requireManager();
+  if (!(await listStores()).some((s) => s.id === Number(storeId))) return { ok: false, error: '店舗が見つかりません' };
+  const r = await applyImport(u.id, Number(storeId), String(ym), entries, staffIds, mode === 'fill' ? 'fill' : 'replace');
+  if (typeof r === 'string') return { ok: false, error: r };
+  revalidatePath('/manage/shifts');
+  const parts = [r.added && `${r.added}件を入れ`, r.changed && `${r.changed}件の時間を変え`, r.removed && `${r.removed}件を外し`].filter(Boolean);
+  return { ok: true, message: parts.length ? `${Number(ym.slice(5))}月の下書きに、${parts.join('、')}ました` : '変わったところはありませんでした' };
 }
 export async function setHopePeriodAction(storeId: number, year: number, month: number, open: string, deadline: string): Promise<Result> {
   const u = await requireManager();

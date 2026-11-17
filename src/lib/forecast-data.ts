@@ -3,7 +3,7 @@ import { sql, audit } from './db';
 import { addDays, daysInMonth, jstParts, ymd } from './time';
 import { buildReport, type Cell } from './kobo';
 import { latestSnapshot } from './ledger';
-import { punchesBetween, listStaff, ratesFor, ensurePeriod } from './data';
+import { punchesBetween, listStaff, ratesFor, ensurePeriod, readParts } from './data';
 import { planCost, summarizeDay, wageAt } from './calc';
 import {
   readParams, dayLoads, predictMin, fit, planDraft, addTo, weekdayOf, MIN_LEARN_DAYS,
@@ -122,14 +122,17 @@ export async function autoDraft(actorId: number, storeId: number, year: number, 
     forecast(storeId, start, to),
     ids.length ? sql<{ staff_id: number; work_date: string; start_min: number; end_min: number }[]>`
       select staff_id, work_date, start_min, end_min from shift_hopes where staff_id = any(${ids}) and work_date between ${start} and ${to}` : Promise.resolve([]),
-    sql<{ staff_id: number; work_date: string; start_min: number; end_min: number }[]>`
-      select staff_id, work_date, start_min, end_min from shifts where store_id = ${storeId} and work_date between ${start} and ${to}`,
+    sql<{ staff_id: number; work_date: string; start_min: number; end_min: number; parts: unknown }[]>`
+      select staff_id, work_date, start_min, end_min, to_jsonb(s)->'parts' as parts from shifts s where store_id = ${storeId} and work_date between ${start} and ${to}`,
     ratesFor(ids),
     sql<{ work_date: string; amount: number }[]>`select work_date, amount from daily_budgets where store_id = ${storeId} and work_date between ${start} and ${to}`,
     sql<{ budget_weekday: number; budget_friday: number; budget_weekend: number }[]>`select budget_weekday, budget_friday, budget_weekend from stores where id = ${storeId}`,
   ]);
+  // 入っている分割シフト（スマレジから取り込んだものなど）は、間の時間を入れずに数える
+  const split = new Map(drafts.map((x) => [`${x.staff_id}|${x.work_date}`, readParts(x.parts)] as const).filter(([, p]) => p));
   const cost = (id: number, d: string, s: number, e: number) => {
-    const c = planCost({ start: s, end: e }, wageAt(rates.get(id) ?? [], d) ?? 0);
+    const ps = split.get(`${id}|${d}`);
+    const c = planCost({ start: s, end: e, parts: ps && ps[0][0] === s && ps[ps.length - 1][1] === e ? ps : null }, wageAt(rates.get(id) ?? [], d) ?? 0);
     return { workMin: c.workMin, total: c.total };
   };
   const budget = (d: string) => {

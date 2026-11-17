@@ -9,6 +9,7 @@ import { TaskList } from '@/components/TaskList';
 import { tasksForStaff, toItem } from '@/lib/tasks';
 import { ledgerBrief } from '@/lib/brief-data';
 import { LedgerBrief } from '@/components/LedgerBrief';
+import { partsText } from '@/lib/shift-parts';
 
 export default async function PunchPage() {
   const u = await requireUser();
@@ -17,6 +18,7 @@ export default async function PunchPage() {
   const s = summarizeDay(day.punches, { now: day.minute, plan: plan ? { start: plan.start_min, end: plan.end_min } : null });
   const lk = lastKind(day.punches);
   const dayWord = day.date === jstParts().date ? '今日' : '前日';
+  const planText = plan ? (plan.parts ? partsText(plan.parts) : `${hm(plan.start_min)}〜${hm(plan.end_min)}`) : '';
   // シフトがある日は、予定表と受発注の入荷・出荷をまとめて出す（シフト前に確認できるように）
   const brief = plan && ledger ? ledger.byDate.get(day.date) ?? null : null;
   const showLedger = !!(plan && ledger && (brief || tasks.length > 0));
@@ -26,7 +28,7 @@ export default async function PunchPage() {
         <PunchPanel allowed={NEXT[lk]} reClockIn={lk === 'out'} serverNow={Date.now()} staffId={u.id} />
         <div className="pstate">
           <span className={`stt s-${s.state}`}>{STATE_LABEL[s.state]}</span>
-          <span className="sub">{plan ? `${dayWord}のシフト ${hm(plan.start_min)}〜${hm(plan.end_min)}` : '今日のシフトはありません'}</span>
+          <span className="sub">{plan ? `${dayWord}のシフト ${planText}` : '今日のシフトはありません'}</span>
         </div>
         {day.punches.length > 0 && (
           <div className="todaylog"><PunchLog punches={day.punches} />{s.workMin > 0 && <span className="sub">実働 {Math.floor(s.workMin / 60)}時間{s.workMin % 60}分</span>}</div>
@@ -34,7 +36,7 @@ export default async function PunchPage() {
       </div>
       {(tasks.length > 0 || showLedger) && (
         <section className="card taskcard brief" aria-label={`${dayWord}のまとめ`}>
-          <div className="item-h"><b>{dayWord}のまとめ</b>{plan && <span className="sub">シフト {hm(plan.start_min)}〜{hm(plan.end_min)}</span>}</div>
+          <div className="item-h"><b>{dayWord}のまとめ</b>{plan && <span className="sub">シフト {planText}</span>}</div>
           {tasks.length > 0 && (
             <div className="brief-sec">
               <div className="brief-h"><b>予定表</b>{tasks.some((t) => t.kind === 'task') && <span className="sub">終わった作業はチェック</span>}</div>

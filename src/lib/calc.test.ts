@@ -91,6 +91,11 @@ describe('人件費', () => {
     const long = planCost({ start: 9 * 60, end: 19 * 60 }, 1180); // 10時間 → 休憩60分 → 実働9時間（8時間超の分も割増なし）
     expect(long).toEqual({ workMin: 540, breakMin: 60, total: 10620 });
     expect(planCost({ start: 10 * 60, end: 17 * 60 }, 1150).workMin).toBe(375); // 7時間 → 休憩45分
+    // 時間帯に分かれたシフト：間の時間は入れない（スマレジの「08:45〜10:15・10:30〜12:00・13:15〜14:45」）
+    const split = planCost({ start: 525, end: 885, parts: [[525, 615], [630, 720], [795, 885]] }, 1200);
+    expect(split.workMin).toBe(270);
+    expect(split.breakMin).toBe(90);
+    expect(split.total).toBe(5400);
   });
   it('円未満は四捨五入', () => {
     expect(laborCost(50, 1150)).toBe(958); // 958.33…

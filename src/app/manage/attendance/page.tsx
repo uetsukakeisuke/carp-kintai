@@ -8,6 +8,7 @@ import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { ActionButton } from '@/components/ActionButton';
 import { decideCorrectionAction } from '@/app/actions';
 import { EditPunchesButton, AddAttendance } from './PunchEditor';
+import { partsText } from '@/lib/shift-parts';
 
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ d?: string; store?: string }> }) {
   await requireManager(); // ページでも必ず確かめる（画面の枠の確認と並行して描かれるため）
@@ -29,10 +30,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     const sum = summarizeDay(ps, { isPast: d < now.date, now: d === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
     const w = wageAt(rates.get(s.id) ?? [], d) ?? 0;
     const cost = sum.firstIn !== null ? laborCost(sum.workMin, w) : 0;
-    const plan = sh ? planCost({ start: sh.start_min, end: sh.end_min }, w).total : 0;
+    const plan = sh ? planCost({ start: sh.start_min, end: sh.end_min, parts: sh.parts }, w).total : 0;
     const flags: [string, string][] = [];
     if (sh && sum.firstIn !== null && sum.firstIn > sh.start_min) flags.push(['late', `遅刻 ${sum.firstIn - sh.start_min}分`]);
-    if (sh && sum.lastOut !== null && sum.lastOut < sh.end_min - 5) flags.push(['early', `早退 ${sh.end_min - sum.lastOut}分`]);
+    // 時間帯が分かれたシフトで、途中の時間帯の終わりに退勤し、まだ次の時間帯の前なら「中抜け」（早退にしない）
+    const next = sh?.parts && sum.lastOut !== null && d === now.date ? sh.parts.find(([a], i) => i > 0 && Math.abs(sh.parts![i - 1][1] - sum.lastOut!) <= 15 && now.minute < a + 30) : undefined;
+    if (next) flags.push(['re', `中抜け（${hm(next[0])}から）`]);
+    else if (sh && sum.lastOut !== null && sum.lastOut < sh.end_min - 5) flags.push(['early', `早退 ${sh.end_min - sum.lastOut}分`]);
     if (sh && sum.lastOut !== null && sum.lastOut > sh.end_min + 14) flags.push(['ot', `残業 ${sum.lastOut - sh.end_min}分`]);
     if (sum.segments.length > 1) flags.push(['re', `${sum.segments.length}回に分けて勤務`]);
     if (ps.some((p) => p.face === 'mismatch' || p.face === 'skipped' || p.face === 'reregistered')) flags.push(['late', '顔 要確認']);
@@ -100,7 +104,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           {rows.map(({ s, ps, sh, sum, cost, flags }) => (
             <tr key={s.id}>
               <td className="head"><b>{s.name}</b></td>
-              <td data-label="予定" className="num">{sh ? `${hm(sh.start_min)}〜${hm(sh.end_min)}` : '—'}</td>
+              <td data-label="予定" className="num">{sh ? (sh.parts ? <span title="時間帯が分かれたシフト">{partsText(sh.parts, ' ')}</span> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : '—'}</td>
               <td data-label="打刻" className="wrap full"><span style={{ marginLeft: 'auto' }}><PunchLog punches={ps} /></span></td>
               <td data-label="休憩" className={`num${sum.breakMin ? '' : ' hide-sp'}`}>{sum.breakMin ? `${sum.breakMin}分` : '—'}</td>
               <td data-label="実働" className={`num${sum.firstIn !== null ? '' : ' hide-sp'}`}>{sum.firstIn !== null ? `${(sum.workMin / 60).toFixed(1)}h` : '—'}</td>

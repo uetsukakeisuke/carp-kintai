@@ -1037,3 +1037,29 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .cal-legend .clb-k { margin-left: 2px }
 @media (min-width: 761px) { .cc .clb i { font-size: 11px; padding: 2px 5px } .cc .clb .w { display: inline } }
 
+/* 時間帯が分かれたシフト（スマレジから取り込んだもの）の印 */
+.mchip.split, .wchip.split { outline: 1.5px dashed var(--accent); outline-offset: 1px }
+/* シフトの取り込み */
+.si-modal { width: min(720px, 100%) }
+.si-drop { display: grid; gap: 4px; place-items: center; text-align: center; border: 2px dashed var(--line); border-radius: 12px; padding: 22px 12px; cursor: pointer; background: var(--surface-2) }
+.si-drop:hover { border-color: var(--accent) }
+.si-drop.busy { opacity: .7; cursor: progress }
+.si-drop input { position: absolute; width: 1px; height: 1px; opacity: 0 }
+.si-drop b { color: var(--accent) }
+.si-list { max-height: 46vh; margin-top: 6px }
+.si-list td { vertical-align: top }
+.si-list .sel { min-width: 150px; width: 100% }
+.si-list tr.si-miss td { background: var(--warn-soft) }
+.si-note { font-size: 12px; margin-top: 2px }
+.si-days summary { cursor: pointer; font-size: 12px }
+.si-days ul { margin: 4px 0 0; padding-left: 16px; font-size: 12px; display: grid; gap: 1px }
+.si-mode { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 6px }
+.si-mode legend { margin-bottom: 4px }
+.si-mode label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.45 }
+.si-mode input { margin-top: 3px }
+.si-sum { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-top: 10px; padding: 8px 10px; border-radius: 9px; background: var(--surface-2); font-size: 14px }
+.si-warn { margin-top: 8px; font-size: 13px }
+.si-warn summary { cursor: pointer }
+.si-warn ul { margin: 4px 0 0; padding-left: 18px; max-height: 140px; overflow: auto }
+@media (max-width: 760px) { .si-list .sel { min-width: 120px } }
+.cc .csh.split { text-decoration: underline dashed; text-underline-offset: 2px }
