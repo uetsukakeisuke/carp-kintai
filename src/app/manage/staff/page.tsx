@@ -21,8 +21,11 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       staff={staff.map((s) => {
         const r = rates.get(s.id) ?? [];
         const cur = wageAt(r, today);
-        const fut = r.filter((x) => x.effective_from > today);
-        const since = [...r].filter((x) => x.effective_from <= today).pop()?.effective_from ?? null;
+        // 時給がまだ始まっていない人（入社前に登録した人など）は、最初の時給を「現在の時給（○/○〜）」として出し、改定には入れない
+        const past = r.filter((x) => x.effective_from <= today);
+        const first = past.length ? null : r[0] ?? null;
+        const fut = r.filter((x) => x.effective_from > today && x !== first);
+        const since = past.length ? past[past.length - 1].effective_from : first?.effective_from ?? null;
         const atNext = next ? wageAt(r, next.effective_from) : cur;
         return {
           id: s.id, name: s.name, kana: s.kana ?? '', role: s.role, employment: s.employment, payType: s.pay_type, storeId: s.store_id,

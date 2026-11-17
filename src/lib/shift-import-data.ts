@@ -3,7 +3,7 @@ import { sql, audit } from './db';
 import { listStaff, ensurePeriod, partsReady, readParts, minWages } from './data';
 import { hashPin, INITIAL_PIN } from './auth';
 import { minWageAt } from './calc';
-import { daysInMonth, ymd } from './time';
+import { daysInMonth, ymd, jstParts } from './time';
 import { readFirstSheet } from './xlsx-read';
 import { decodeText, deriveWages, importDiff, matchStaff, nameKey, parseCsv, parseShiftTable, type ExistingShift, type ImportCounts, type ImportDay, type ImportEntry } from './shift-import';
 import { cleanParts } from './shift-parts';
@@ -99,6 +99,9 @@ export async function applyImport(actorId: number, storeId: number, ym: string, 
   const counts = importDiff(before, entries, staffIds, mode);
   const period = await ensurePeriod(storeId, y, m);
   const pin = newStaff.length ? await hashPin(INITIAL_PIN) : '';
+  // 新しく登録する人の時給は、今日（取り込む月が先なら今日から、過ぎた月ならその月の1日から）
+  const today = jstParts().date;
+  const wageFrom = from < today ? from : today;
   const created: { id: number; name: string }[] = [];
   await sql.begin(async (tx) => {
     // アプリにいない人を登録（同じ名前の人が在籍していれば、その人を使う）
@@ -108,7 +111,7 @@ export async function applyImport(actorId: number, storeId: number, ym: string, 
       if (same) { idOf.set(n.tmp, same.id); continue; }
       const [s] = await tx<{ id: number }[]>`insert into staff (name, role, employment, store_id, transport_per_day, pin_hash, sort)
         values (${n.name}, 'staff', 'ﾊﾟｰﾄ', ${storeId}, 0, ${pin}, (select coalesce(max(sort), 0) + 1 from staff)) returning id`;
-      await tx`insert into wage_rates (staff_id, effective_from, hourly, created_by) values (${s.id}, ${from}, ${n.hourly}, ${actorId})`;
+      await tx`insert into wage_rates (staff_id, effective_from, hourly, created_by) values (${s.id}, ${wageFrom}, ${n.hourly}, ${actorId})`;
       idOf.set(n.tmp, s.id); created.push({ id: s.id, name: n.name });
     }
     const real = (id: number) => (id > 0 ? id : idOf.get(id)!);

@@ -6,6 +6,7 @@ import { ToastHost } from '@/components/Toast';
 
 // サーバーの処理は30秒で打ち切る（止まった処理が後ろの操作を待たせ続けないように。初期値は最大300秒）
 export const maxDuration = 30;
+const FONTS = '/fonts/v1/fonts.css';
 
 export const metadata: Metadata = {
   title: 'カープ勤怠',
@@ -24,9 +25,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" />
+        {/* 文字（フォント）は、アプリと同じ場所から、画面の表示を止めずにあとから読む（まず端末の文字で出し、届いたら切り替わる）。
+            ファイルは scripts/copy-fonts.mjs がビルドの前に public/fonts/ に用意する */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='${FONTS}';document.head.appendChild(l)})()` }} />
+        <noscript><link rel="stylesheet" href={FONTS} /></noscript>
       </head>
       <body>
         {children}

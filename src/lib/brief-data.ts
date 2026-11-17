@@ -1,7 +1,7 @@
 import 'server-only';
 import { sql } from './db';
 import { jstParts } from './time';
-import { buildReport, type Cell } from './kobo';
+import { buildReport, type Cell, type OrderRow } from './kobo';
 import { dayLoads } from './forecast';
 import { forecastParams } from './forecast-data';
 import { briefOf, type DayBrief } from './brief';
@@ -23,9 +23,16 @@ export async function ledgerBrief(): Promise<{ at: Date; byDate: Map<string, Day
     if (!head) return null;
     const key = `${head.id}|${today}|${params.shipLead}`;
     if (memo?.key === key) return memo;
-    const [snap] = await sql<{ orders: Cell[][] }[]>`select orders from ledger_snapshots where id = ${head.id}`;
-    if (!snap) return null;
-    const loads = dayLoads(buildReport(snap.orders, [], today).rows, today, params.shipLead, { keepEmpty: true });
+    // 取り込むときに残した「まだ済になっていない行」だけを読む（台帳全体は大きいので）。古い台帳にはないので全体から作る
+    const [snap] = await sql<{ open: OrderRow[] | null }[]>`select meta->'open' as open from ledger_snapshots where id = ${head.id}`;
+    let rows: OrderRow[];
+    if (Array.isArray(snap?.open)) rows = snap.open;
+    else {
+      const [full] = await sql<{ orders: Cell[][] }[]>`select orders from ledger_snapshots where id = ${head.id}`;
+      if (!full) return null;
+      rows = buildReport(full.orders, [], today).rows;
+    }
+    const loads = dayLoads(rows, today, params.shipLead, { keepEmpty: true });
     const byDate = new Map<string, DayBrief>();
     for (const [d, l] of loads) if (d >= today) byDate.set(d, briefOf(l.items));
     memo = { key, at: new Date(head.received_at), byDate };

@@ -20,7 +20,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const [y, m] = ym.split('-').map(Number);
   const nd = daysInMonth(y, m), from = ymd(y, m, 1), to = ymd(y, m, nd);
   const sel = sp.d && sp.d.startsWith(ym) ? sp.d : now.date.startsWith(ym) ? now.date : from;
-  const storeId = await storeOf(u.id);
+  const storeId = u.store_id ?? (await storeOf(u.id));
   const [punches, shifts, reqs, tasks, ledger, crew] = await Promise.all([
     punchesBetween(from, to, u.id), publishedShifts(from, to, { staffId: u.id }), listCorrections({ staffId: u.id }),
     storeId ? tasksOfStore(storeId, from, to) : Promise.resolve([]), ledgerBrief(),
@@ -53,7 +53,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     cells.push(
       <Link key={k} className={cls} href={`/me/calendar?ym=${ym}&d=${k}`} scroll={false} aria-label={`${m}月${d}日${sh ? ' シフトあり' : ''}`}>
         <span className="cn">{d}</span>
-        {sh && <span className={`csh${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}>{hshort(sh.start_min)}-{hshort(sh.end_min)}</span>}
+        {sh && <span className={`csh${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hshort(sh.start_min)}</span><span>{hshort(sh.end_min)}</span></span>}
         {(() => {
           // 受発注の入荷・出荷（今日以降。全員に出す）
           const lb = k >= now.date ? ledger?.byDate.get(k) : undefined;
@@ -95,11 +95,19 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         {WD.map((x, i) => <div key={x} className={`cw${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{x}</div>)}
         {cells}
       </div>
-      {ledger && <p className="sub cal-legend"><i className="clb-k in">入</i>入荷・<i className="clb-k out">出</i>出荷の件数（受発注台帳 {new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(ledger.at)}時点）。日を押すと品名が出ます。</p>}
+      {ledger && (
+        <p className="sub cal-legend">
+          <span><i className="clb-k in">入</i>入荷・</span><span><i className="clb-k out">出</i>出荷の件数</span>
+          <span>（受発注台帳 {new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(ledger.at)}時点）。日を押すと品名が出ます。</span>
+        </p>
+      )}
       <div className="caldet">
         <div className="row"><b>{dateLabel(sel)}</b>{s.state !== 'none' && <span className={`stt s-${s.state}`}>{STATE_LABEL[s.state]}</span>}
           {s.segments.length > 1 && <span className="flag f-re">{s.segments.length}回に分けて勤務</span>}</div>
-        <div className="cdrow"><span className="sub">シフト</span><span className="num">{sh ? (isSplit(sh.parts) ? <>{partsText(sh.parts)}<span className="sub" style={{ fontFamily: 'inherit' }}>（間の時間は勤務に入りません）</span></> : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : 'なし'}</span></div>
+        <div className="cdrow"><span className="sub">シフト</span><span className="num">{sh ? (isSplit(sh.parts)
+          ? <><b>{hm(sh.start_min)}〜{hm(sh.end_min)}</b><span className="sub" style={{ fontFamily: 'inherit' }}>　勤務 {hoursLabel(planCost({ start: sh.start_min, end: sh.end_min, parts: sh.parts }, 0).workMin)}（{sh.parts.length}回に分かれています）</span>
+              <span className="cdparts">{sh.parts.map(([a, b]) => <span key={a} className="nchip">{hm(a)}〜{hm(b)}</span>)}</span></>
+          : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : 'なし'}</span></div>
         <div className="cdrow"><span className="sub">打刻</span><span><PunchLog punches={ps} /></span></div>
         {s.firstIn !== null && <div className="cdrow"><span className="sub">実働</span><span className="num">{hoursLabel(s.workMin)}{s.breakMin ? `（休憩 ${s.breakMin}分）` : ''}</span></div>}
         {myReqs.map((q) => (

@@ -13,8 +13,9 @@ import { partsText, isSplit } from '@/lib/shift-parts';
 
 export default async function PunchPage() {
   const u = await requireUser();
+  const ledgerP = ledgerBrief(); // 勤務日に関係なく読めるので先に始める
   const [day, now] = await Promise.all([resolveWorkDay(u.id), whoIsWorking()]);
-  const [[plan], tasks, ledger] = await Promise.all([publishedShifts(day.date, day.date, { staffId: u.id }), tasksForStaff(u.id, day.date), ledgerBrief()]);
+  const [[plan], tasks, ledger] = await Promise.all([publishedShifts(day.date, day.date, { staffId: u.id }), tasksForStaff(u.id, day.date), ledgerP]);
   const s = summarizeDay(day.punches, { now: day.minute, plan: plan ? { start: plan.start_min, end: plan.end_min } : null });
   const lk = lastKind(day.punches);
   const dayWord = day.date === jstParts().date ? '今日' : '前日';

@@ -26,15 +26,18 @@ export default async function HopesPage({ searchParams }: { searchParams: Promis
       <div className="chips" style={{ marginBottom: 12 }}>
         {months.map((x) => <Link key={x} className={`btn${x === ym ? ' primary' : ''}`} href={`/me/hopes?ym=${x}`}>{Number(x.slice(5))}月分</Link>)}
       </div>
-      <div className={`banner${sub ? '' : ' warn'}`}>
+      {!locked && !notOpen && <div className={`banner${sub ? '' : ' warn'}`}>
         <span>
           {sub ? <b>提出済み</b> : <b>{m}月のシフト希望{period?.hope_deadline ? `を ${Number(period.hope_deadline.slice(5, 7))}月${Number(period.hope_deadline.slice(8))}日までに` : 'を'}提出してください</b>}
           {sub && period?.hope_deadline && !locked && `　締切（${Number(period.hope_deadline.slice(5, 7))}/${Number(period.hope_deadline.slice(8))}）までは何度でも直せます。`}
           <br />出勤できる日だけ「＋ 時間を入れる」を押して時間を指定してください。何も入れない日は出勤しない日になります。
         </span>
-      </div>
+      </div>}
       {notOpen ? <div className="empty"><b>まだ受付前です</b>{m}月分は {Number(period!.hope_open!.slice(5, 7))}月{Number(period!.hope_open!.slice(8))}日から入力できます。</div>
-        : locked ? <div className="empty"><b>締切を過ぎました</b>変更したいときは店長に相談してください。</div>
+        : locked ? <div className="empty"><b>{m}月分の受付は締め切りました</b>
+            {period?.status === 'published' || period?.status === 'changed'
+              ? <>{m}月のシフトは<Link href={`/me/shifts?ym=${ym}`}>シフト表</Link>で見られます。変更したいときは店長に相談してください。</>
+              : '変更したいときは店長に相談してください。'}</div>
         : <HopeForm year={y} month={m} initial={hopes.map((h) => ({ date: h.work_date, start: h.start_min, end: h.end_min }))} submitted={!!sub} />}
     </div>
   );

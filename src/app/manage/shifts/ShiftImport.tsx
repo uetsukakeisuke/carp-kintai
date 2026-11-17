@@ -153,7 +153,7 @@ export function ShiftImport({ storeId, year, month }: { storeId: number; year: n
                 </table></div>
                 {sum!.newStaff.length > 0 && (
                   <p className="sub" style={{ margin: '6px 0 0' }}>
-                    アプリにいない {sum!.newStaff.map((n) => n.name).join('、')} さんは、取り込むときにスタッフとして登録します（パート・{pm}月1日からの時給・ログインは名前を押すだけ）。
+                    アプリにいない {sum!.newStaff.map((n) => n.name).join('、')} さんは、取り込むときにスタッフとして登録します（パート・ログインは名前を押すだけ）。
                     フリガナや交通費は、あとで<Link href="/manage/staff">スタッフ・時給</Link>で入れられます。
                   </p>
                 )}

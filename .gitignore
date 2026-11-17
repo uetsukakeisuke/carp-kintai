@@ -5,3 +5,5 @@ node_modules
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+# ビルドの前に scripts/copy-fonts.mjs が作る
+public/fonts/

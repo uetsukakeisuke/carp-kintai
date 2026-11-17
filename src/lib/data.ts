@@ -130,9 +130,11 @@ const withParts = <T extends { parts?: unknown }>(rows: T[]) => rows.map((r) => 
 
 export async function monthBundle(storeId: number, year: number, month: number) {
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
-  const [period] = await sql<{ id: number; status: 'draft' | 'published' | 'changed'; hope_open: string | null; hope_deadline: string | null; published_at: Date | null }[]>`
-    select id, status, hope_open, hope_deadline, published_at from shift_periods where store_id = ${storeId} and year = ${year} and month = ${month}`;
-  const staff = await listStaff({ storeId });
+  const [[period], staff] = await Promise.all([
+    sql<{ id: number; status: 'draft' | 'published' | 'changed'; hope_open: string | null; hope_deadline: string | null; published_at: Date | null }[]>`
+      select id, status, hope_open, hope_deadline, published_at from shift_periods where store_id = ${storeId} and year = ${year} and month = ${month}`,
+    listStaff({ storeId }),
+  ]);
   const ids = staff.map((s) => s.id);
   const [drafts, published, hopes, subs, budgets, rates, mw] = await Promise.all([
     sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(s)->'parts' as parts from shifts s where store_id = ${storeId} and work_date between ${from} and ${to}`.then(withParts),

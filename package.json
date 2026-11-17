@@ -4,8 +4,8 @@
   "private": true,
   "description": "株式会社カープエージェンシー 勤怠・シフト管理システム",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/copy-fonts.mjs && next dev",
+    "build": "node scripts/copy-fonts.mjs && next build",
     "start": "next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
@@ -16,6 +16,9 @@
     "import:staff": "tsx scripts/import-staff.ts"
   },
   "dependencies": {
+    "@fontsource/biz-udpgothic": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/zen-kaku-gothic-new": "5.3.1",
     "@vladmandic/face-api": "1.7.15",
     "@xmldom/xmldom": "0.8.15",
     "bcryptjs": "2.4.3",

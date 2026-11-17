@@ -9,7 +9,7 @@ export type NavGroup = { href: string; label: string; pages?: NavPage[] };
 
 const under = (path: string, href: string) => path === href || path.startsWith(href + '/');
 
-export function NavLinks({ items, className, bottom, badges }: { items: Item[]; className: string; bottom?: boolean; badges?: Record<string, number> }) {
+export function NavLinks({ items, className, bottom, badges, prefetchAll }: { items: Item[]; className: string; bottom?: boolean; badges?: Record<string, number>; prefetchAll?: boolean }) {
   const path = usePathname();
   useEffect(() => {
     if (!bottom) return;
@@ -24,7 +24,7 @@ export function NavLinks({ items, className, bottom, badges }: { items: Item[]; 
       {items.map((it) => {
         const n = badges?.[it.href] ?? 0;
         return (
-          <Link key={it.href} href={it.href} aria-current={active(it) ? 'page' : undefined}>
+          <Link key={it.href} href={it.href} prefetch={prefetchAll && !active(it) ? true : undefined} aria-current={active(it) ? 'page' : undefined}>
             {bottom && <b aria-hidden="true">{it.icon}</b>}
             {bottom ? it.short ?? it.label : it.label}
             {n > 0 && (bottom ? <span className="dot">{n}</span> : <span className="cnt">{n}</span>)}

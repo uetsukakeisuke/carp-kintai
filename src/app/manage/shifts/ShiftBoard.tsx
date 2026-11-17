@@ -160,8 +160,6 @@ export function ShiftBoard(p: {
         <div className="card"><div className="k">総労働時間</div><div className="mid num">{(totals.work / 60).toFixed(1)}h</div><div className="sub">希望外 {mis}件</div></div>
         <div className="card" style={{ display: 'grid', gap: 8, alignContent: 'center' }}>{pill}
           <span className={`savestate${pending ? '' : ' ok'}`} aria-live="polite">{pending ? '保存中…' : '✓ 入力はすべて保存済み'}</span>
-          {auto()}
-          {importer}
           {publishBtn}</div>
       </section>
       {/* スマホ：1枚にまとめる */}
@@ -175,6 +173,7 @@ export function ShiftBoard(p: {
 
       <div className="legend">
         <span><i className="sw hope" />出勤希望</span><span><i className="sw shift" />シフト</span><span><i className="sw warnb" />希望とずれている</span>
+        <span className="legend-tools only-pc">{auto()}{importer}</span>
         <span className="seg viewtoggle" role="group" aria-label="表示の切り替え">
           {(['day', 'week', 'month'] as const).map((v) => <a key={v} href="#" onClick={(e) => { e.preventDefault(); changeView(v); }} aria-current={view === v ? 'page' : undefined}>{{ day: '日', week: '週', month: '月' }[v]}</a>)}
         </span>
@@ -209,7 +208,7 @@ export function ShiftBoard(p: {
                 <div className="bars-axis" aria-hidden><span />{<div>{ticks.map((h) => <i key={h} style={{ left: `${pct(h * 60)}%` }}>{h}</i>)}</div>}</div>
                 {people.map(({ st, sh, h }) => (
                   <button key={st.id} type="button" role="listitem" className={`barrow${sh ? ' on' : ''}${mismatch(st.id, d) ? ' mis' : ''}`} onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                    <span className="bn"><b>{st.name}</b><small>{sh ? (isSplit(sh.parts) ? partsText(sh.parts) : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
+                    <span className="bn"><b>{st.name}</b><small>{sh ? (isSplit(sh.parts) ? `${hm(sh.s)}〜${hm(sh.e)}（${sh.parts.length}回）` : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
                     <span className="bt">
                       {ticks.map((x) => <i key={x} className="grid" style={{ left: `${pct(x * 60)}%` }} />)}
                       {h && <i className="hb" style={{ left: `${pct(h.s)}%`, width: `${pct(h.e) - pct(h.s)}%` }} />}

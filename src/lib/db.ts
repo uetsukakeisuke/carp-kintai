@@ -30,7 +30,7 @@ function create() {
   const local = /localhost|127\.0\.0\.1/.test(url);
   const st: Stats = { n: 0, closing: false, sent: 0, born: Date.now() };
   const s = postgres(url, {
-    max: local ? 1 : 3,
+    max: local ? 1 : 5, // 1画面で並べて送る問い合わせを、待たせずに流せる数
     idle_timeout: 20,
     connect_timeout: 8, // つながらないときは待ち続けずにエラーにする
     max_lifetime: 60 * 5,

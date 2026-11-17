@@ -24,7 +24,7 @@ export function cleanGrid(v: unknown, cols = MAX_COLS): Cell[][] | null {
   return out;
 }
 
-export async function saveSnapshot(orders: Cell[][], terms: Cell[][], meta: { gid?: number }) {
+export async function saveSnapshot(orders: Cell[][], terms: Cell[][], meta: { gid?: number; open?: unknown[] }) {
   const rows = orders.filter((r) => r.some((c) => c !== '' && c !== null)).length;
   const [s] = await sql<{ id: number }[]>`insert into ledger_snapshots (orders, terms, row_count, meta)
     values (${sql.json(orders as never)}, ${sql.json(terms as never)}, ${rows}, ${sql.json(meta as never)}) returning id`;

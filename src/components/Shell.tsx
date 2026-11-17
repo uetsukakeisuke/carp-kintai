@@ -69,7 +69,8 @@ export function Shell({ user, manager, area, badges, children }: {
         {area === 'manage' && <Suspense fallback={null}><SubNav groups={nav.filter((n) => n.pages?.length)} badges={badges} /></Suspense>}
         {children}
       </div>
-      <NavLinks items={nav.filter((n) => n.bottom !== false)} className="botnav" bottom badges={badges} />
+      {/* スタッフ画面の下のメニューは、中身まで先に読んでおく（押したらすぐ出る。軽い画面だけなので） */}
+      <NavLinks items={nav.filter((n) => n.bottom !== false)} className="botnav" bottom badges={badges} prefetchAll={area === 'me'} />
     </div>
   );
 }

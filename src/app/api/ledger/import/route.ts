@@ -19,11 +19,13 @@ export async function POST(req: Request) {
   if (!orders || orders.length < 2 || !terms) return NextResponse.json({ ok: false, error: '受発注履歴が空です' }, { status: 400 });
   const gid = Number.isInteger(body.gid) ? (body.gid as number) : undefined;
   const prev = await latestSnapshot();
-  const saved = await saveSnapshot(orders, terms, { gid });
+  const r = buildReport(orders, terms, jstParts().date);
+  // スタッフ向けの入荷・出荷（打刻画面・カレンダー）用に、まだ済になっていない行だけを小さく持っておく（金額は持たない）
+  const open = r.rows.filter((x) => (!x.fromStock && !x.received && x.supDue) || (!x.toStock && !x.delivered && x.custDue)).map((x) => ({ ...x, amount: 0 }));
+  const saved = await saveSnapshot(orders, terms, { gid, open });
   // 前回から「仕入」「客先納品」が済になった行を、今日の作業として記録（作業量の予測の学習用）。失敗しても取り込みは成功にする
   let events = 0;
   try { events = await recordLedgerChanges(prev?.orders ?? null, orders); } catch (e) { console.error('[ledger] 作業の記録に失敗', e); }
-  const r = buildReport(orders, terms, jstParts().date);
   return NextResponse.json({
     ok: true, rows: saved.rows, read: r.read, events,
     counts: { overdue: r.overdue.length, soon: r.soon.length, late: r.late.length, unbilled: r.unbilled.length, issues: r.issues.length },
