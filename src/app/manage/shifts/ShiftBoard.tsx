@@ -8,6 +8,7 @@ import { call } from '@/lib/call';
 import { AutoDraft } from './AutoDraft';
 import { ShiftImport } from './ShiftImport';
 import { partsOf, partsText, gapsOf, isSplit, type Part } from '@/lib/shift-parts';
+import { periodsOf, periodsLabel } from '@/lib/periods';
 import type { Window } from '@/lib/forecast';
 
 type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: Part[] | null };
@@ -24,6 +25,14 @@ const man1 = (n: number) => (n / 10000).toFixed(1); // 万円（小数1桁）
 const TL_S = 8 * 60, TL_E = 26 * 60; // 日ごとのバーの範囲（8時〜翌2時）
 const pct = (m: number) => ((Math.min(Math.max(m, TL_S), TL_E) - TL_S) / (TL_E - TL_S)) * 100;
 type View = 'day' | 'week' | 'month';
+/** シフトの時間帯が、希望の時間帯の中に収まっているか（授業のコマで出した希望は、コマの中だけ） */
+const within = (sh: { s: number; e: number; parts?: Part[] | null }, h: { s: number; e: number; parts?: Part[] | null }) =>
+  partsOf({ start: sh.s, end: sh.e, parts: sh.parts }).every(([a, b]) => partsOf({ start: h.s, end: h.e, parts: h.parts }).some(([x, y]) => a >= x && b <= y));
+/** 希望の表示（コマで選んだ日は「1・2限」、時間帯なら「8:45〜10:15・…」） */
+const hopeText = (h: { s: number; e: number; parts?: Part[] | null }) => {
+  const ns = periodsOf(h.parts);
+  return ns ? `${periodsLabel(ns)}（${partsText(h.parts!)}）` : h.parts && h.parts.length > 1 ? partsText(h.parts) : `${hm(h.s)}〜${hm(h.e)}`;
+};
 /** 時間帯つきのシフト（スマレジから取り込んだもの）を、時間帯のまま保存するか（開始・終了が元の時間帯の端と同じとき） */
 const keepParts = (x: { s: number; e: number; parts?: Part[] | null }) => !!x.parts && x.parts.length > 0 && x.parts[0][0] === x.s && x.parts[x.parts.length - 1][1] === x.e;
 
@@ -39,7 +48,7 @@ export function ShiftBoard(p: {
   const wd = (d: number) => new Date(p.year, p.month - 1, d).getDay();
   const [shifts, setShifts] = useState<Record<string, Sh>>(() => Object.fromEntries(p.drafts.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min, parts: c.parts ?? null }])));
   const [status, setStatus] = useState(p.status);
-  const hopes = useMemo(() => Object.fromEntries(p.hopes.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min }])), [p.hopes]);
+  const hopes = useMemo(() => Object.fromEntries(p.hopes.map((c) => [`${c.staff_id}|${c.work_date}`, { s: c.start_min, e: c.end_min, parts: c.parts ?? null } as Sh])), [p.hopes]);
   const [ed, setEd] = useState<{ staffId: number; d: number; s: number; e: number; had: boolean; parts?: Part[] | null } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [view, setView] = useState<View>('month');
@@ -78,7 +87,7 @@ export function ShiftBoard(p: {
   const costOf = (st: Staff, d: number, sh: Sh) => planCost({ start: sh.s, end: sh.e, parts: sh.parts }, rate(st.id, key(d)));
   const get = (id: number, d: number) => shifts[`${id}|${key(d)}`];
   const submittedSet = new Set(p.submitted);
-  const mismatch = (id: number, d: number) => { const sh = get(id, d); if (!sh) return false; const h = hopes[`${id}|${key(d)}`]; if (!h) return submittedSet.has(id); return sh.s < h.s || sh.e > h.e; };
+  const mismatch = (id: number, d: number) => { const sh = get(id, d); if (!sh) return false; const h = hopes[`${id}|${key(d)}`]; if (!h) return submittedSet.has(id); return !within(sh, h); };
 
   const totals = useMemo(() => {
     const dayCost = Array(nd + 1).fill(0), dayN = Array(nd + 1).fill(0), staffCost: Record<number, { c: number; w: number }> = {};
@@ -101,7 +110,8 @@ export function ShiftBoard(p: {
 
   const open = (staffId: number, d: number) => {
     const cur = get(staffId, d), h = hopes[`${staffId}|${key(d)}`];
-    setEd({ staffId, d, s: cur?.s ?? h?.s ?? 600, e: cur?.e ?? h?.e ?? 1020, had: !!cur, parts: cur?.parts ?? null });
+    // シフトがまだない日は、希望（授業のコマで選んだ日はそのコマ）を初めの値にする
+    setEd({ staffId, d, s: cur?.s ?? h?.s ?? 600, e: cur?.e ?? h?.e ?? 1020, had: !!cur, parts: cur ? cur.parts ?? null : h?.parts ?? null });
   };
   const save = (del = false) => {
     if (!ed) return;
@@ -127,7 +137,7 @@ export function ShiftBoard(p: {
   const names = useMemo(() => Object.fromEntries(p.staff.map((s) => [s.id, s.name])), [p.staff]);
   const addAuto = (ws: Window[]) => {
     if (!ws.length) return;
-    setShifts((x) => { const n = { ...x }; for (const w of ws) n[`${w.staffId}|${w.date}`] = { s: w.s, e: w.e }; return n; });
+    setShifts((x) => { const n = { ...x }; for (const w of ws) n[`${w.staffId}|${w.date}`] = { s: w.s, e: w.e, parts: w.parts ?? null }; return n; });
     if (status === 'published') setStatus('changed');
   };
   const removeAuto = (ws: Window[]) => {
@@ -208,10 +218,10 @@ export function ShiftBoard(p: {
                 <div className="bars-axis" aria-hidden><span />{<div>{ticks.map((h) => <i key={h} style={{ left: `${pct(h * 60)}%` }}>{h}</i>)}</div>}</div>
                 {people.map(({ st, sh, h }) => (
                   <button key={st.id} type="button" role="listitem" className={`barrow${sh ? ' on' : ''}${mismatch(st.id, d) ? ' mis' : ''}`} onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                    <span className="bn"><b>{st.name}</b><small>{sh ? (isSplit(sh.parts) ? `${hm(sh.s)}〜${hm(sh.e)}（${sh.parts.length}回）` : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${hs(h.s)}-${hs(h.e)}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
+                    <span className="bn"><b>{st.name}</b><small>{sh ? (isSplit(sh.parts) ? `${hm(sh.s)}〜${hm(sh.e)}（${sh.parts.length}回）` : `${hm(sh.s)}〜${hm(sh.e)}`) : h ? `希望 ${periodsOf(h.parts) ? periodsLabel(periodsOf(h.parts)!) : `${hs(h.s)}-${hs(h.e)}`}` : submittedSet.has(st.id) ? '希望なし' : '希望未提出'}</small></span>
                     <span className="bt">
                       {ticks.map((x) => <i key={x} className="grid" style={{ left: `${pct(x * 60)}%` }} />)}
-                      {h && <i className="hb" style={{ left: `${pct(h.s)}%`, width: `${pct(h.e) - pct(h.s)}%` }} />}
+                      {h && partsOf({ start: h.s, end: h.e, parts: h.parts }).map(([a, b]) => <i key={`h${a}`} className="hb" style={{ left: `${pct(a)}%`, width: `${pct(b) - pct(a)}%` }} />)}
                       {sh ? partsOf({ start: sh.s, end: sh.e, parts: sh.parts }).map(([a, b]) => <i key={a} className="sb" style={{ left: `${pct(a)}%`, width: `${pct(b) - pct(a)}%` }} />) : <i className="plus">＋</i>}
                     </span>
                   </button>
@@ -253,7 +263,7 @@ export function ShiftBoard(p: {
                         return (
                           <td key={d} className={`${h ? 'hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                             <button type="button" onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                              {sh ? <span className={`wchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="whope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                              {sh ? <span className={`wchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className={`whope num${isSplit(h.parts) ? ' split' : ''}`} title={h.parts ? hopeText(h) : undefined}>{hs(h.s)}<br />{hs(h.e)}</span> : null}
                             </button>
                           </td>);
                       })}
@@ -310,7 +320,7 @@ export function ShiftBoard(p: {
                       return (
                         <td key={d} className={`c${h ? ' hope' : ''}${mismatch(st.id, d) ? ' mis' : ''}`}>
                           <button onClick={() => open(st.id, d)} aria-label={`${st.name} ${p.month}月${d}日`}>
-                            {sh ? <span className={`mchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className="mhope num">{hs(h.s)}<br />{hs(h.e)}</span> : null}
+                            {sh ? <span className={`mchip num${isSplit(sh.parts) ? ' split' : ''}`} title={isSplit(sh.parts) ? partsText(sh.parts, '\n') : undefined}><span>{hs(sh.s)}</span><span>{hs(sh.e)}</span></span> : h ? <span className={`mhope num${isSplit(h.parts) ? ' split' : ''}`} title={h.parts ? hopeText(h) : undefined}>{hs(h.s)}<br />{hs(h.e)}</span> : null}
                           </button>
                         </td>);
                     })}
@@ -327,7 +337,7 @@ export function ShiftBoard(p: {
           </div>
         </div>
       </>}
-      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。スマレジから取り込んだシフトは、スマレジに書いてある時間どおりに数えます（休憩を自動で引かず、「8:45〜10:15・10:30〜12:00」のように分かれた日は間の時間を入れません。分かれた日はマスに点線の印）。</p>
+      <p className="sub" style={{ marginTop: 12 }}>人件費＝時給×実働時間。実働時間は、6時間超で45分、8時間超で60分の休憩を自動で差し引いた時間です（深夜・残業の割増や交通費は入れていません）。スマレジから取り込んだシフトと、授業のコマで出た希望から「希望どおり」で入れたシフトは、時間帯どおりに数えます（休憩を自動で引かず、「8:45〜10:15・10:30〜12:00」のように分かれた日は間の時間を入れません。分かれた日はマスに点線の印）。</p>
 
       {ed && (() => {
         const st = p.staff.find((x) => x.id === ed.staffId)!;
@@ -337,15 +347,15 @@ export function ShiftBoard(p: {
         const r = valid ? costOf(st, ed.d, { s: ed.s, e: ed.e, parts: kept ? ed.parts : null }) : null;
         const old = get(ed.staffId, ed.d), oldC = old ? costOf(st, ed.d, old).total : 0;
         const after = totals.cost - oldC + (r?.total ?? 0), dayAfter = totals.dayCost[ed.d] - oldC + (r?.total ?? 0);
-        const outside = valid && (h ? ed.s < h.s || ed.e > h.e : submittedSet.has(st.id));
+        const outside = valid && (h ? !within({ s: ed.s, e: ed.e, parts: kept ? ed.parts : null }, h) : submittedSet.has(st.id));
         return (
           <div className="scrim" onClick={(e) => e.target === e.currentTarget && setEd(null)}>
             <div className="modal" role="dialog" aria-modal="true" aria-labelledby="edT">
               <h3 id="edT">{st.name}　{p.month}/{ed.d}（{WD[wd(ed.d)]}）</h3>
               <div className="meta">時給 {yen(rate(st.id, key(ed.d)))}</div>
-              <div className={`hopebox ${h ? 'ok' : 'ng'}`}>{h ? `出勤希望：${hm(h.s)}〜${hm(h.e)}` : submittedSet.has(st.id) ? 'この日は出勤希望がありません' : '希望が未提出です'}</div>
+              <div className={`hopebox ${h ? 'ok' : 'ng'}`}>{h ? `出勤希望：${hopeText(h)}` : submittedSet.has(st.id) ? 'この日は出勤希望がありません' : '希望が未提出です'}</div>
               <div className="pats">
-                {h && <button onClick={() => setEd({ ...ed, s: h.s, e: h.e })}><b>希望どおり</b><span className="num">{hs(h.s)}-{hs(h.e)}</span></button>}
+                {h && <button onClick={() => setEd({ ...ed, s: h.s, e: h.e, parts: h.parts ?? null })}><b>希望どおり</b><span className="num">{h.parts && periodsOf(h.parts) ? periodsLabel(periodsOf(h.parts)!) : `${hs(h.s)}-${hs(h.e)}`}</span></button>}
                 {PATTERNS.map((pt) => <button key={pt.n} onClick={() => setEd({ ...ed, s: pt.s, e: pt.e })}><b>{pt.n}</b><span className="num">{hs(pt.s)}-{hs(pt.e)}</span></button>)}
               </div>
               <div className="row">
@@ -358,8 +368,8 @@ export function ShiftBoard(p: {
                 <div className={`hopebox ${kept ? 'ok' : 'ng'}`} style={{ marginTop: 8 }}>
                   {kept
                     ? (isSplit(ed.parts)
-                      ? <>スマレジの時間どおり：<b className="num">{partsText(ed.parts)}</b>（間の {partsText(gapsOf(ed.parts))} は勤務に入れず、休憩も引きません）</>
-                      : <>スマレジの時間どおり：<b className="num">{partsText(ed.parts)}</b>（休憩を自動で引きません）</>)
+                      ? <>時間帯どおり：<b className="num">{partsText(ed.parts)}</b>（間の {partsText(gapsOf(ed.parts))} は勤務に入れず、休憩も引きません）</>
+                      : <>時間帯どおり：<b className="num">{partsText(ed.parts)}</b>（休憩を自動で引きません）</>)
                     : <>開始・終了を変えたので、アプリで入れたシフトと同じ数え方（6時間超で45分・8時間超で60分の休憩を引く）になります（元の時間：{partsText(ed.parts)}）</>}
                 </div>
               )}

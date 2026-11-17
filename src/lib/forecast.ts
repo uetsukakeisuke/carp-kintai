@@ -130,7 +130,8 @@ export function fit(samples: Sample[], prior: Coef, priorDays = 5): { coef: Coef
 }
 
 // ---------- 下書き ----------
-export type Window = { staffId: number; date: string; s: number; e: number };
+/** parts：授業のコマで出した希望・取り込んだシフトの時間帯（あればその時間帯どおりに入れる） */
+export type Window = { staffId: number; date: string; s: number; e: number; parts?: [number, number][] | null };
 export type DraftDay = { date: string; needMin: number; minPeople: number; workMin: number; people: number; cost: number; budget: number; added: number; short: boolean; over: boolean };
 export type DraftInput = {
   dates: string[];

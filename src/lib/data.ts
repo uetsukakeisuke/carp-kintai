@@ -114,18 +114,29 @@ export interface ShiftCell { staff_id: number; work_date: string; start_min: num
 
 // 分割シフトの列（parts）は db/update-2026-11-17-shifts.sql で足す。足す前でも画面が壊れないよう、
 // 読むときは to_jsonb(行)->'parts'（列がなければ null）、書くときは列があるときだけ書く。
-let partsCol: { ok: boolean; at: number } | null = null;
-export async function partsReady(): Promise<boolean> {
-  if (partsCol && (partsCol.ok || Date.now() - partsCol.at < 60_000)) return partsCol.ok;
+const partsCol = new Map<string, { ok: boolean; at: number }>();
+async function colsReady(key: string, tables: string[]): Promise<boolean> {
+  const c = partsCol.get(key);
+  if (c && (c.ok || Date.now() - c.at < 60_000)) return c.ok;
+  let ok = false;
   try {
     const [r] = await sql<{ n: number }[]>`select count(*)::int as n from information_schema.columns
-      where table_schema = current_schema() and table_name in ('shifts', 'published_shifts') and column_name = 'parts'`;
-    partsCol = { ok: r.n === 2, at: Date.now() };
-  } catch { partsCol = { ok: false, at: Date.now() }; }
-  return partsCol.ok;
+      where table_schema = current_schema() and table_name = any(${tables}::text[]) and column_name = 'parts'`;
+    ok = r.n === tables.length;
+  } catch { ok = false; }
+  partsCol.set(key, { ok, at: Date.now() });
+  return ok;
 }
+/** シフトの時間帯の列（db/update-2026-11-17-shifts.sql） */
+export const partsReady = () => colsReady('shifts', ['shifts', 'published_shifts']);
+/** シフト希望の時間帯の列（db/update-2026-11-17-hopes.sql） */
+export const hopePartsReady = () => colsReady('hopes', ['shift_hopes']);
 /** データベースから読んだ parts を整える（壊れた値は続いたシフトとして扱う） */
-export const readParts = (v: unknown): Part[] | null => { const c = cleanParts(v); return c === 'bad' ? null : c; };
+export const readParts = (v: unknown): Part[] | null => {
+  // 文字列で入ってしまった値（'[[525,615]]'）も読めるようにする
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  const c = cleanParts(v); return c === 'bad' ? null : c;
+};
 const withParts = <T extends { parts?: unknown }>(rows: T[]) => rows.map((r) => ({ ...r, parts: readParts(r.parts) }));
 
 export async function monthBundle(storeId: number, year: number, month: number) {
@@ -139,7 +150,7 @@ export async function monthBundle(storeId: number, year: number, month: number) 
   const [drafts, published, hopes, subs, budgets, rates, mw] = await Promise.all([
     sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(s)->'parts' as parts from shifts s where store_id = ${storeId} and work_date between ${from} and ${to}`.then(withParts),
     sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(p)->'parts' as parts from published_shifts p where store_id = ${storeId} and work_date between ${from} and ${to}`.then(withParts),
-    ids.length ? sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min from shift_hopes where staff_id = any(${ids}) and work_date between ${from} and ${to}` : Promise.resolve([] as ShiftCell[]),
+    ids.length ? sql<ShiftCell[]>`select staff_id, work_date, start_min, end_min, to_jsonb(h)->'parts' as parts from shift_hopes h where staff_id = any(${ids}) and work_date between ${from} and ${to}`.then(withParts) : Promise.resolve([] as ShiftCell[]),
     ids.length ? sql<{ staff_id: number; submitted_at: Date }[]>`select staff_id, submitted_at from hope_submissions where staff_id = any(${ids}) and year = ${year} and month = ${month}` : Promise.resolve([]),
     sql<{ work_date: string; amount: number }[]>`select work_date, amount from daily_budgets where store_id = ${storeId} and work_date between ${from} and ${to}`,
     ratesFor(ids),
@@ -162,7 +173,7 @@ export async function upsertShift(actorId: number, c: { storeId: number; staffId
   else if (await partsReady()) {
     // 時間帯（スマレジの時間どおり）を残すのは、時間帯をそのまま渡されたときだけ。時間を変えたらアプリの決まり（休憩を自動で引く）
     const parts = c.parts && c.parts.length ? c.parts : null;
-    await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min, parts) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end}, ${parts ? sql.json(parts) : null})
+    await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min, parts) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end}, (${parts ? JSON.stringify(parts) : null}::text)::jsonb)
       on conflict (staff_id, work_date) do update set store_id = excluded.store_id, start_min = excluded.start_min, end_min = excluded.end_min, parts = excluded.parts, updated_at = now()`;
   } else await sql`insert into shifts (staff_id, work_date, store_id, start_min, end_min) values (${c.staffId}, ${c.date}, ${c.storeId}, ${c.start}, ${c.end})
       on conflict (staff_id, work_date) do update set store_id = excluded.store_id, start_min = excluded.start_min, end_min = excluded.end_min, updated_at = now()`;

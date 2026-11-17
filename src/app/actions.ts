@@ -6,9 +6,9 @@ import {
   hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser, requireAdmin,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
-import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores } from '@/lib/data';
+import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores, hopePartsReady } from '@/lib/data';
 import { minWageAt, wageAt, canPunch, type PunchKind } from '@/lib/calc';
-import { cleanParts } from '@/lib/shift-parts';
+import { cleanParts, type Part } from '@/lib/shift-parts';
 import { previewImport, applyImport, MAX_FILE as MAX_IMPORT_FILE, type ImportPreview } from '@/lib/shift-import-data';
 import { daysInMonth, ymd, jstParts } from '@/lib/time';
 import { importPayslipFiles, assignPayslips, rotateImportSecret, setSlipPin, unlockSlips, lockSlips, resetSlipPin } from '@/lib/payslips';
@@ -110,7 +110,7 @@ export async function requestCorrectionAction(date: string, kind: PunchKind, min
 }
 
 // ---------- シフト希望 ----------
-export async function saveHopesAction(year: number, month: number, days: { date: string; start: number; end: number }[], submit: boolean): Promise<Result> {
+export async function saveHopesAction(year: number, month: number, days: { date: string; start: number; end: number; parts?: unknown }[], submit: boolean): Promise<Result> {
   const u = await requireUser();
   const from = ymd(year, month, 1), to = ymd(year, month, daysInMonth(year, month));
   const [p] = await sql<{ hope_open: string | null; hope_deadline: string | null }[]>`
@@ -118,13 +118,25 @@ export async function saveHopesAction(year: number, month: number, days: { date:
   const today = jstParts().date;
   if (p?.hope_open && today < p.hope_open) return { ok: false, error: `${month}月分の受付は${Number(p.hope_open.slice(5, 7))}月${Number(p.hope_open.slice(8))}日からです` };
   if (p?.hope_deadline && today > p.hope_deadline) return { ok: false, error: '締切を過ぎています。変更は店長に相談してください' };
+  const rows: { date: string; start: number; end: number; parts: Part[] | null }[] = [];
   for (const d of days) {
-    if (!isDate(d.date) || d.date < from || d.date > to || !isMin(d.start) || !isMin(d.end)) return { ok: false, error: '入力内容を確認してください' };
+    if (!isDate(d.date) || d.date < from || d.date > to) return { ok: false, error: '入力内容を確認してください' };
+    // 授業のコマで選んだ日は、時間帯（parts）で持つ。開始・終了は最初と最後のコマ
+    const ps = cleanParts(d.parts ?? null);
+    if (ps === 'bad') return { ok: false, error: `${Number(d.date.slice(8))}日：コマを選び直してください` };
+    if (ps) { rows.push({ date: d.date, start: ps[0][0], end: ps[ps.length - 1][1], parts: ps }); continue; }
+    if (!isMin(d.start) || !isMin(d.end)) return { ok: false, error: '入力内容を確認してください' };
     if (d.end <= d.start) return { ok: false, error: `${Number(d.date.slice(8))}日：終了時刻を開始時刻より後にしてください` };
+    rows.push({ date: d.date, start: d.start, end: d.end, parts: null });
   }
+  const withParts = await hopePartsReady();
+  if (!withParts && rows.some((r) => r.parts)) return { ok: false, error: '授業のコマで選ぶための準備がまだです。店長に知らせてください（データベースの更新が必要です）' };
   await sql.begin(async (tx) => {
     await tx`delete from shift_hopes where staff_id = ${u.id} and work_date between ${from} and ${to}`;
-    for (const d of days) await tx`insert into shift_hopes (staff_id, work_date, start_min, end_min) values (${u.id}, ${d.date}, ${d.start}, ${d.end})`;
+    for (const d of rows) {
+      if (withParts) await tx`insert into shift_hopes (staff_id, work_date, start_min, end_min, parts) values (${u.id}, ${d.date}, ${d.start}, ${d.end}, (${d.parts ? JSON.stringify(d.parts) : null}::text)::jsonb)`;
+      else await tx`insert into shift_hopes (staff_id, work_date, start_min, end_min) values (${u.id}, ${d.date}, ${d.start}, ${d.end})`;
+    }
     if (submit) await tx`insert into hope_submissions (staff_id, year, month) values (${u.id}, ${year}, ${month})
       on conflict (staff_id, year, month) do update set submitted_at = now()`;
   });

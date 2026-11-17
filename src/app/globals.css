@@ -1077,3 +1077,22 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .legend-tools { display: inline-flex; gap: 8px; margin-left: auto }
 .legend-tools + .viewtoggle { margin-left: 8px }
 .legend-tools .btn { min-height: 40px; padding: 0 14px; font-size: 13px }
+/* シフト希望：時間／授業のコマ */
+.hbody { display: grid; gap: 8px; min-width: 0 }
+.hmode { display: inline-flex; width: max-content; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface) }
+.hmode button { border: 0; background: transparent; padding: 6px 12px; font-size: 13px; font-weight: 700; color: var(--muted); min-height: 34px }
+.hmode button[aria-pressed="true"] { background: var(--accent); color: #fff }
+.hperiods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px }
+.hp-k { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 6px 2px; display: grid; gap: 2px; justify-items: center; min-height: 56px; color: var(--muted) }
+.hp-k b { font-size: 14px; color: var(--ink) }
+.hp-k small { font-size: 10.5px; line-height: 1.15 }
+.hp-k[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: #fff }
+.hp-k[aria-pressed="true"] b { color: #fff }
+.hfoot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.hfoot .hdel { margin-left: auto; min-height: 34px }
+.hadd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px }
+.addbtn.alt { width: auto; color: var(--ok); white-space: nowrap }
+@media (min-width: 761px) { .hp-k small { font-size: 11.5px } .hp-k small br { display: none } .hp-k small { white-space: nowrap } }
+.mhope.split, .whope.split { outline: 1px dashed var(--ok); outline-offset: 1px; border-radius: 4px }
+.hgrid .hv.hv-k { flex-direction: row; align-items: baseline; font-weight: 700; color: var(--ok); letter-spacing: .02em } .hv.hv-k small { font-size: 9px; margin-left: 1px }
+.hv.split { outline: 1px dashed var(--ok); outline-offset: 1px; border-radius: 4px }

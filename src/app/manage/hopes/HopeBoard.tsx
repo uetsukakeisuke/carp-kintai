@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Timeline } from '@/components/Timeline';
 import { DeadlineForm } from './DeadlineForm';
+import { partsOf, partsText, isSplit, type Part } from '@/lib/shift-parts';
+import { periodsOf, periodsLabel } from '@/lib/periods';
 
-type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number };
+type Cell = { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: Part[] | null };
+/** 希望の時間（授業のコマで出した日は、コマの時間だけ） */
+const mins = (h: Cell) => partsOf({ start: h.start_min, end: h.end_min, parts: h.parts }).reduce((a, [s, e]) => a + e - s, 0);
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 const hs = (x: number) => (x % 60 ? hm(x) : String(x / 60));
@@ -29,10 +33,10 @@ export function HopeBoard(p: {
   const notYet = p.staff.filter((s) => !sub.has(s.id));
   const perDay = days.map((d) => p.staff.filter((s) => hope.has(`${s.id}|${key(d)}`)).length);
   const lowDays = days.filter((d) => perDay[d - 1] <= LOW);
-  const totalMin = p.hopes.reduce((a, h) => a + h.end_min - h.start_min, 0);
+  const totalMin = p.hopes.reduce((a, h) => a + mins(h), 0);
   const perStaff = (id: number) => {
     const hs2 = p.hopes.filter((h) => h.staff_id === id);
-    return { n: hs2.length, min: hs2.reduce((a, h) => a + h.end_min - h.start_min, 0) };
+    return { n: hs2.length, min: hs2.reduce((a, h) => a + mins(h), 0) };
   };
 
   const state = p.open && p.today < p.open ? { t: `受付前（${md(p.open)}から）`, c: 'draft' }
@@ -112,7 +116,7 @@ export function HopeBoard(p: {
 
       {view === 'day' ? (() => {
         const d = sel, k = key(d);
-        const can = p.staff.flatMap((s) => { const h = hope.get(`${s.id}|${k}`); return h ? [{ id: s.id, name: sub.has(s.id) ? s.name : `${s.name}（未提出）`, start: h.start_min, end: h.end_min }] : []; });
+        const can = p.staff.flatMap((s) => { const h = hope.get(`${s.id}|${k}`); if (!h) return []; const ns = periodsOf(h.parts); return [{ id: s.id, name: `${s.name}${sub.has(s.id) ? '' : '（未提出）'}${ns ? `（${periodsLabel(ns)}）` : ''}`, start: h.start_min, end: h.end_min, parts: h.parts }]; });
         const no = p.staff.filter((s) => sub.has(s.id) && !hope.has(`${s.id}|${k}`));
         return (
           <div className="dayview">
@@ -158,7 +162,9 @@ export function HopeBoard(p: {
                       <th className="sc staffc"><b>{s.name}</b><small>{subAt ? `提出 ${Number(subAt.slice(5, 7))}/${Number(subAt.slice(8, 10))}` : <span className="bad-t">未提出</span>}</small></th>
                       {days.map((d) => {
                         const h = hope.get(`${s.id}|${key(d)}`);
-                        return <td key={d} className={`hc${h ? ' on' : ''}`}>{h && <span className="hv num"><span>{hs(h.start_min)}</span><span>{hs(h.end_min)}</span></span>}</td>;
+                        return <td key={d} className={`hc${h ? ' on' : ''}`}>{h && (periodsOf(h.parts)
+                          ? <span className="hv num hv-k" title={partsText(h.parts!)}>{periodsOf(h.parts)!.join('')}<small>限</small></span>
+                          : <span className={`hv num${isSplit(h.parts) ? ' split' : ''}`} title={h.parts ? partsText(h.parts) : undefined}><span>{hs(h.start_min)}</span><span>{hs(h.end_min)}</span></span>)}</td>;
                       })}
                       <td className="tot">{subAt ? <><b>{t.n}日</b><small>{(t.min / 60).toFixed(1)}h</small></> : <small>—</small>}</td>
                     </tr>

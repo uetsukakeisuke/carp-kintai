@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { jstParts, daysInMonth, ymd } from '@/lib/time';
 import { HopeForm } from './HopeForm';
+import { readParts } from '@/lib/data';
 
 export default async function HopesPage({ searchParams }: { searchParams: Promise<{ ym?: string }> }) {
   const u = await requireUser();
@@ -14,7 +15,7 @@ export default async function HopesPage({ searchParams }: { searchParams: Promis
   const [y, m] = ym.split('-').map(Number);
   const from = ymd(y, m, 1), to = ymd(y, m, daysInMonth(y, m));
   const [hopes, [sub], [period]] = await Promise.all([
-    sql<{ work_date: string; start_min: number; end_min: number }[]>`select work_date, start_min, end_min from shift_hopes where staff_id = ${u.id} and work_date between ${from} and ${to}`,
+    sql<{ work_date: string; start_min: number; end_min: number; parts: unknown }[]>`select work_date, start_min, end_min, to_jsonb(h)->'parts' as parts from shift_hopes h where staff_id = ${u.id} and work_date between ${from} and ${to}`,
     sql<{ submitted_at: Date }[]>`select submitted_at from hope_submissions where staff_id = ${u.id} and year = ${y} and month = ${m}`,
     sql<{ hope_open: string | null; hope_deadline: string | null; status: string }[]>`select hope_open, hope_deadline, status from shift_periods where store_id = ${u.store_id ?? 0} and year = ${y} and month = ${m}`,
   ]);
@@ -30,7 +31,7 @@ export default async function HopesPage({ searchParams }: { searchParams: Promis
         <span>
           {sub ? <b>提出済み</b> : <b>{m}月のシフト希望{period?.hope_deadline ? `を ${Number(period.hope_deadline.slice(5, 7))}月${Number(period.hope_deadline.slice(8))}日までに` : 'を'}提出してください</b>}
           {sub && period?.hope_deadline && !locked && `　締切（${Number(period.hope_deadline.slice(5, 7))}/${Number(period.hope_deadline.slice(8))}）までは何度でも直せます。`}
-          <br />出勤できる日だけ「＋ 時間を入れる」を押して時間を指定してください。何も入れない日は出勤しない日になります。
+          <br />出勤できる日だけ「＋ 時間を入れる」か「＋ コマで選ぶ」（授業に合わせて1〜5限から選ぶ）を押してください。何も入れない日は出勤しない日になります。
         </span>
       </div>}
       {notOpen ? <div className="empty"><b>まだ受付前です</b>{m}月分は {Number(period!.hope_open!.slice(5, 7))}月{Number(period!.hope_open!.slice(8))}日から入力できます。</div>
@@ -38,7 +39,7 @@ export default async function HopesPage({ searchParams }: { searchParams: Promis
             {period?.status === 'published' || period?.status === 'changed'
               ? <>{m}月のシフトは<Link href={`/me/shifts?ym=${ym}`}>シフト表</Link>で見られます。変更したいときは店長に相談してください。</>
               : '変更したいときは店長に相談してください。'}</div>
-        : <HopeForm year={y} month={m} initial={hopes.map((h) => ({ date: h.work_date, start: h.start_min, end: h.end_min }))} submitted={!!sub} />}
+        : <HopeForm year={y} month={m} initial={hopes.map((h) => ({ date: h.work_date, start: h.start_min, end: h.end_min, parts: readParts(h.parts) }))} submitted={!!sub} />}
     </div>
   );
 }

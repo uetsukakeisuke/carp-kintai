@@ -3,7 +3,7 @@ import { sql, audit } from './db';
 import { addDays, daysInMonth, jstParts, ymd } from './time';
 import { buildReport, type Cell } from './kobo';
 import { latestSnapshot } from './ledger';
-import { punchesBetween, listStaff, ratesFor, ensurePeriod, readParts } from './data';
+import { punchesBetween, listStaff, ratesFor, ensurePeriod, readParts, partsReady } from './data';
 import { planCost, summarizeDay, wageAt } from './calc';
 import {
   readParams, dayLoads, predictMin, fit, planDraft, addTo, weekdayOf, MIN_LEARN_DAYS,
@@ -120,18 +120,20 @@ export async function autoDraft(actorId: number, storeId: number, year: number, 
   const ids = staff.map((s) => s.id);
   const [fc, hopes, drafts, rates, budgets, [store]] = await Promise.all([
     forecast(storeId, start, to),
-    ids.length ? sql<{ staff_id: number; work_date: string; start_min: number; end_min: number }[]>`
-      select staff_id, work_date, start_min, end_min from shift_hopes where staff_id = any(${ids}) and work_date between ${start} and ${to}` : Promise.resolve([]),
+    ids.length ? sql<{ staff_id: number; work_date: string; start_min: number; end_min: number; parts: unknown }[]>`
+      select staff_id, work_date, start_min, end_min, to_jsonb(h)->'parts' as parts from shift_hopes h where staff_id = any(${ids}) and work_date between ${start} and ${to}` : Promise.resolve([]),
     sql<{ staff_id: number; work_date: string; start_min: number; end_min: number; parts: unknown }[]>`
       select staff_id, work_date, start_min, end_min, to_jsonb(s)->'parts' as parts from shifts s where store_id = ${storeId} and work_date between ${start} and ${to}`,
     ratesFor(ids),
     sql<{ work_date: string; amount: number }[]>`select work_date, amount from daily_budgets where store_id = ${storeId} and work_date between ${start} and ${to}`,
     sql<{ budget_weekday: number; budget_friday: number; budget_weekend: number }[]>`select budget_weekday, budget_friday, budget_weekend from stores where id = ${storeId}`,
   ]);
-  // 入っている分割シフト（スマレジから取り込んだものなど）は、間の時間を入れずに数える
+  // 時間帯つきのシフト（スマレジから取り込んだもの）・授業のコマで出した希望は、時間帯どおりに数える（間の時間は入れない）
   const split = new Map(drafts.map((x) => [`${x.staff_id}|${x.work_date}`, readParts(x.parts)] as const).filter(([, p]) => p));
+  const hopeParts = new Map(hopes.map((x) => [`${x.staff_id}|${x.work_date}`, readParts(x.parts)] as const).filter(([, p]) => p));
   const cost = (id: number, d: string, s: number, e: number) => {
-    const ps = split.get(`${id}|${d}`);
+    const ex = split.get(`${id}|${d}`), hp = hopeParts.get(`${id}|${d}`);
+    const ps = ex && ex[0][0] === s && ex[ex.length - 1][1] === e ? ex : hp;
     const c = planCost({ start: s, end: e, parts: ps && ps[0][0] === s && ps[ps.length - 1][1] === e ? ps : null }, wageAt(rates.get(id) ?? [], d) ?? 0);
     return { workMin: c.workMin, total: c.total };
   };
@@ -139,7 +141,7 @@ export async function autoDraft(actorId: number, storeId: number, year: number, 
     const o = budgets.find((b) => b.work_date === d); if (o) return o.amount;
     const w = weekdayOf(d); return w === 0 || w === 6 ? store?.budget_weekend ?? 0 : w === 5 ? store?.budget_friday ?? 0 : store?.budget_weekday ?? 0;
   };
-  const W = (x: { staff_id: number; work_date: string; start_min: number; end_min: number }): Window => ({ staffId: x.staff_id, date: x.work_date, s: x.start_min, e: x.end_min });
+  const W = (x: { staff_id: number; work_date: string; start_min: number; end_min: number; parts?: unknown }): Window => ({ staffId: x.staff_id, date: x.work_date, s: x.start_min, e: x.end_min, parts: readParts(x.parts) });
   const plan = planDraft({
     dates: fc.days.map((d) => d.date), need: Object.fromEntries(fc.days.map((d) => [d.date, { min: d.min, people: d.people }])),
     hopes: hopes.map(W), existing: drafts.map(W), cost, budget, eligible: new Set(ids),
@@ -148,15 +150,25 @@ export async function autoDraft(actorId: number, storeId: number, year: number, 
   let added: Window[] = [];
   if (plan.add.length) {
     const period = await ensurePeriod(storeId, year, month);
+    const withParts = await partsReady();
     await sql.begin(async (tx) => {
       const A = plan.add;
-      const ins = await tx<{ staff_id: number; work_date: string; start_min: number; end_min: number }[]>`
-        insert into shifts (staff_id, work_date, store_id, start_min, end_min)
-        select u.staff_id, u.work_date, ${storeId}, u.start_min, u.end_min
-        from unnest(${A.map((w) => w.staffId)}::int[], ${A.map((w) => w.date)}::date[], ${A.map((w) => w.s)}::int[], ${A.map((w) => w.e)}::int[])
-          as u(staff_id, work_date, start_min, end_min)
-        on conflict (staff_id, work_date) do nothing
-        returning staff_id, work_date::text as work_date, start_min, end_min`;
+      // 授業のコマで出した希望は、コマの時間帯のまま入れる
+      const ins = withParts
+        ? await tx<{ staff_id: number; work_date: string; start_min: number; end_min: number; parts: unknown }[]>`
+          insert into shifts (staff_id, work_date, store_id, start_min, end_min, parts)
+          select u.staff_id, u.work_date, ${storeId}, u.start_min, u.end_min, nullif(u.parts, '')::jsonb
+          from unnest(${A.map((w) => w.staffId)}::int[], ${A.map((w) => w.date)}::date[], ${A.map((w) => w.s)}::int[], ${A.map((w) => w.e)}::int[], ${A.map((w) => (w.parts ? JSON.stringify(w.parts) : ''))}::text[])
+            as u(staff_id, work_date, start_min, end_min, parts)
+          on conflict (staff_id, work_date) do nothing
+          returning staff_id, work_date::text as work_date, start_min, end_min, parts`
+        : await tx<{ staff_id: number; work_date: string; start_min: number; end_min: number }[]>`
+          insert into shifts (staff_id, work_date, store_id, start_min, end_min)
+          select u.staff_id, u.work_date, ${storeId}, u.start_min, u.end_min
+          from unnest(${A.map((w) => w.staffId)}::int[], ${A.map((w) => w.date)}::date[], ${A.map((w) => w.s)}::int[], ${A.map((w) => w.e)}::int[])
+            as u(staff_id, work_date, start_min, end_min)
+          on conflict (staff_id, work_date) do nothing
+          returning staff_id, work_date::text as work_date, start_min, end_min`;
       added = ins.map(W);
       if (ins.length) {
         await tx`insert into auto_drafts (batch, store_id, staff_id, work_date, start_min, end_min, created_by)
