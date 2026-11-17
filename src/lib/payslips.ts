@@ -164,13 +164,22 @@ export async function unlockSlips(staffId: number, pin: string): Promise<{ ok: t
   const [s] = await sql<{ slip_pin_hash: string | null; slip_failed: number; slip_locked_until: Date | null }[]>`select slip_pin_hash, slip_failed, slip_locked_until from staff where id = ${staffId}`;
   if (!s?.slip_pin_hash) return { ok: false, error: '暗証番号がまだ決まっていません' };
   if (s.slip_locked_until && s.slip_locked_until > new Date()) return { ok: false, error: `${MAX_FAILS}回間違えたため、しばらく開けません。急ぐ場合は管理者に聞いてください。` };
+  // 確かめる前に回数を数える（同時にたくさん送られても、ロックまでに試せるのは決まった回数だけ）
+  const [t] = await sql<{ n: number }[]>`update staff set slip_failed = slip_failed + 1
+    where id = ${staffId} and (slip_locked_until is null or slip_locked_until <= now()) returning slip_failed as n`;
+  const lockNow = () => sql`update staff set slip_failed = 0, slip_locked_until = ${new Date(Date.now() + LOCK_MIN * 60000)}
+    where id = ${staffId} and (slip_locked_until is null or slip_locked_until <= now())`;
+  if (!t || t.n > MAX_FAILS) {
+    if (t) await lockNow();
+    return { ok: false, error: `${MAX_FAILS}回間違えたため、しばらく開けません。急ぐ場合は管理者に聞いてください。` };
+  }
   if (/^\d{4}$/.test(pin) && (await bcrypt.compare(pin, s.slip_pin_hash))) {
-    await grant(staffId);
+    await grant(staffId); // 回数も 0 に戻る
     return { ok: true };
   }
-  const fails = s.slip_failed + 1, lock = fails >= MAX_FAILS;
-  await sql`update staff set slip_failed = ${lock ? 0 : fails}, slip_locked_until = ${lock ? new Date(Date.now() + LOCK_MIN * 60000) : null} where id = ${staffId}`;
-  return { ok: false, error: lock ? `${MAX_FAILS}回間違えたため、${LOCK_MIN}分間開けません。` : `暗証番号が違います（あと${MAX_FAILS - fails}回で${LOCK_MIN}分ロック）` };
+  const lock = t.n >= MAX_FAILS;
+  if (lock) await lockNow();
+  return { ok: false, error: lock ? `${MAX_FAILS}回間違えたため、${LOCK_MIN}分間開けません。` : `暗証番号が違います（あと${MAX_FAILS - t.n}回で${LOCK_MIN}分ロック）` };
 }
 export async function resetSlipPin(actorId: number, staffId: number) {
   await sql`update staff set slip_pin_hash = null, slip_pin = null, slip_failed = 0, slip_locked_until = null where id = ${staffId}`;

@@ -1,6 +1,6 @@
 import 'server-only';
 import { sql, audit } from './db';
-import { listStaff, ensurePeriod, partsReady, readParts, minWages } from './data';
+import { listStaff, ensurePeriod, partsReady, readParts, minWages, LOCK, monthKey } from './data';
 import { hashPin, INITIAL_PIN } from './auth';
 import { minWageAt } from './calc';
 import { daysInMonth, ymd, jstParts } from './time';
@@ -104,6 +104,7 @@ export async function applyImport(actorId: number, storeId: number, ym: string, 
   const wageFrom = from < today ? from : today;
   const created: { id: number; name: string }[] = [];
   await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${LOCK.month}, ${monthKey(storeId, y, m)})`; // 同じ月の取り込み・公開は順番に
     // アプリにいない人を登録（同じ名前の人が在籍していれば、その人を使う）
     const idOf = new Map<number, number>();
     for (const n of newStaff) {

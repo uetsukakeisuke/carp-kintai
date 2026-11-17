@@ -6,7 +6,7 @@ import {
   hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser, requireAdmin,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
-import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores, hopePartsReady } from '@/lib/data';
+import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores, hopePartsReady, LOCK } from '@/lib/data';
 import { minWageAt, wageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { cleanParts, type Part } from '@/lib/shift-parts';
 import { previewImport, applyImport, MAX_FILE as MAX_IMPORT_FILE, type ImportPreview } from '@/lib/shift-import-data';
@@ -132,6 +132,7 @@ export async function saveHopesAction(year: number, month: number, days: { date:
   const withParts = await hopePartsReady();
   if (!withParts && rows.some((r) => r.parts)) return { ok: false, error: '授業のコマで選ぶための準備がまだです。店長に知らせてください（データベースの更新が必要です）' };
   await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${LOCK.hopes}, ${u.id})`; // 同じ人が2つの画面から同時に提出しても順番に
     await tx`delete from shift_hopes where staff_id = ${u.id} and work_date between ${from} and ${to}`;
     for (const d of rows) {
       if (withParts) await tx`insert into shift_hopes (staff_id, work_date, start_min, end_min, parts) values (${u.id}, ${d.date}, ${d.start}, ${d.end}, (${d.parts ? JSON.stringify(d.parts) : null}::text)::jsonb)`;
@@ -204,8 +205,9 @@ export async function setHopePeriodAction(storeId: number, year: number, month: 
 // ---------- 勤怠（店長） ----------
 export async function decideCorrectionAction(id: number, approve: boolean): Promise<Result> {
   const u = await requireManager();
-  await decideCorrection(u.id, Number(id), Boolean(approve));
+  const done = await decideCorrection(u.id, Number(id), Boolean(approve));
   revalidatePath('/manage/attendance');
+  if (!done) return { ok: true, message: 'この申請は、ほかの人がすでに処理しています' };
   return { ok: true, message: approve ? '承認して勤務記録を直しました' : '申請を却下しました' };
 }
 

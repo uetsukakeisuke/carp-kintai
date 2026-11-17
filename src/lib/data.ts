@@ -1,4 +1,5 @@
 import 'server-only';
+import type postgres from 'postgres';
 import { sql, audit } from './db';
 import { canPunch, decideWorkDay, type Punch, type PunchKind, type WageRate } from './calc';
 import { addDays, DAY_BOUNDARY_MIN, jstParts, ymd, daysInMonth } from './time';
@@ -43,8 +44,9 @@ export async function minWages() {
 // ---------------- 打刻 ----------------
 export interface PunchRow { id: number; staff_id: number; store_id: number | null; work_date: string; kind: PunchKind; minute: number; via: string; original_minute: number | null; correction_reason: string | null; face: 'ok' | 'mismatch' | 'skipped' | 'registered' | 'reregistered' | null }
 
-export async function punchesBetween(from: string, to: string, staffId?: number): Promise<PunchRow[]> {
-  return sql<PunchRow[]>`select id, staff_id, store_id, work_date, kind, minute, via, original_minute, correction_reason, face
+/** q：トランザクションの中から読むときは tx を渡す（同じ接続で読む） */
+export async function punchesBetween(from: string, to: string, staffId?: number, q: postgres.Sql = sql): Promise<PunchRow[]> {
+  return q<PunchRow[]>`select id, staff_id, store_id, work_date, kind, minute, via, original_minute, correction_reason, face
     from punches where not voided and work_date between ${from} and ${to}
     and (${staffId ?? null}::int is null or staff_id = ${staffId ?? null})
     order by work_date, minute, id`;
@@ -54,26 +56,35 @@ export async function punchesBetween(from: string, to: string, staffId?: number)
  * 打刻する勤務日と時刻（分）を決める。
  * 深夜 5:00 より前で、前日の勤務が退勤していなければ「前日の続き」（例：翌1:30 → 前日の 25:30）。
  */
-export async function resolveWorkDay(staffId: number, now = new Date()): Promise<{ date: string; minute: number; punches: Punch[] }> {
+export async function resolveWorkDay(staffId: number, now = new Date(), q: postgres.Sql = sql): Promise<{ date: string; minute: number; punches: Punch[] }> {
   const t = jstParts(now);
   if (t.minute < DAY_BOUNDARY_MIN) {
     const prev = addDays(t.date, -1);
-    const pp = await punchesBetween(prev, prev, staffId);
+    const pp = await punchesBetween(prev, prev, staffId, q);
     const d = decideWorkDay(t, prev, pp.length ? pp[pp.length - 1].kind : 'none');
     if (d.date === prev) return { ...d, punches: pp };
   }
-  const tp = await punchesBetween(t.date, t.date, staffId);
+  const tp = await punchesBetween(t.date, t.date, staffId, q);
   return { date: t.date, minute: t.minute, punches: tp };
 }
 
+// 同時に動くと困る処理の順番待ち（トランザクションの間だけ。pg_advisory_xact_lock の1つ目の番号）
+export const LOCK = { punch: 7101, hopes: 7102, month: 7103 } as const;
+/** 店舗と月を1つの番号に（月ごとの公開・取り込みの順番待ち用） */
+export const monthKey = (storeId: number, year: number, month: number) => storeId * 10000 + (year - 2000) * 12 + month;
+
 export async function recordPunch(staffId: number, kind: PunchKind, via: 'mobile' | 'terminal', face: { face: string; distance: number | null } | null = null): Promise<{ ok: true; date: string; minute: number } | { ok: false; error: string }> {
-  const day = await resolveWorkDay(staffId);
-  if (!canPunch(day.punches, kind)) return { ok: false, error: 'いまはこの打刻はできません。画面を更新して状態を確認してください。' };
-  const last = day.punches[day.punches.length - 1];
-  if (last && day.minute - last.minute < 1 && last.kind === kind) return { ok: false, error: '同じ打刻が続けて押されました。' };
-  const [st] = await sql<{ store_id: number | null }[]>`select store_id from staff where id = ${staffId}`;
-  await sql`insert into punches (staff_id, store_id, work_date, kind, minute, via, face, face_distance) values (${staffId}, ${st?.store_id ?? null}, ${day.date}, ${kind}, ${day.minute}, ${via}, ${face?.face ?? null}, ${face?.distance ?? null})`;
-  return { ok: true, date: day.date, minute: day.minute };
+  // 同じ人の打刻は1つずつ順番に（スマホと店舗端末から同時に押されても、同じ打刻を二重に入れない）
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${LOCK.punch}, ${staffId})`;
+    const day = await resolveWorkDay(staffId, new Date(), tx as unknown as postgres.Sql); // 順番が来てから、同じ接続で今の打刻を読む
+    if (!canPunch(day.punches, kind)) return { ok: false as const, error: 'いまはこの打刻はできません。画面を更新して状態を確認してください。' };
+    const last = day.punches[day.punches.length - 1];
+    if (last && day.minute - last.minute < 1 && last.kind === kind) return { ok: false as const, error: '同じ打刻が続けて押されました。' };
+    const [st] = await tx<{ store_id: number | null }[]>`select store_id from staff where id = ${staffId}`;
+    await tx`insert into punches (staff_id, store_id, work_date, kind, minute, via, face, face_distance) values (${staffId}, ${st?.store_id ?? null}, ${day.date}, ${kind}, ${day.minute}, ${via}, ${face?.face ?? null}, ${face?.distance ?? null})`;
+    return { ok: true as const, date: day.date, minute: day.minute };
+  });
 }
 
 // ---------------- 打刻修正の申請 ----------------
@@ -87,10 +98,12 @@ export async function listCorrections(opts: { status?: string; staffId?: number 
     order by c.created_at desc limit 200`;
 }
 
-export async function decideCorrection(actorId: number, id: number, approve: boolean) {
-  await sql.begin(async (tx) => {
+/** 申請を承認・却下する。ほかの人が先に処理していたときは false（何もしない） */
+export async function decideCorrection(actorId: number, id: number, approve: boolean): Promise<boolean> {
+  const done = await sql.begin(async (tx) => {
     const [c] = await tx<CorrectionRow[]>`select * from correction_requests where id = ${id} and status = 'pending' for update`;
-    if (!c) return;
+    if (!c) return false;
+    await tx`select pg_advisory_xact_lock(${LOCK.punch}, ${c.staff_id})`;
     if (approve) {
       // 同じ種類の打刻がその日にあれば最初の1件を直す（修正前の時刻は残す）。なければ追加する。
       const [p] = await tx<{ id: number; minute: number; original_minute: number | null }[]>`
@@ -105,8 +118,11 @@ export async function decideCorrection(actorId: number, id: number, approve: boo
       }
     }
     await tx`update correction_requests set status = ${approve ? 'approved' : 'rejected'}, decided_by = ${actorId}, decided_at = now() where id = ${id}`;
+    return true;
   });
+  if (!done) return false;
   await audit(actorId, approve ? 'correction_approved' : 'correction_rejected', { id });
+  return true;
 }
 
 // ---------------- シフト ----------------
@@ -186,6 +202,7 @@ export async function publishMonth(actorId: number, storeId: number, year: numbe
   await ensurePeriod(storeId, year, month);
   const withP = await partsReady();
   await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${LOCK.month}, ${monthKey(storeId, year, month)})`; // 2人が同時に公開しても順番に
     await tx`delete from published_shifts where store_id = ${storeId} and work_date between ${from} and ${to}`;
     if (withP) await tx`insert into published_shifts (staff_id, work_date, store_id, start_min, end_min, parts)
       select staff_id, work_date, store_id, start_min, end_min, parts from shifts where store_id = ${storeId} and work_date between ${from} and ${to}`;
@@ -208,9 +225,12 @@ export async function publishedShifts(from: string, to: string, opts: { storeId?
 // ---------------- 管理者による勤怠の直接修正 ----------------
 /** その日の打刻を、指定した内容にそろえる（変えた打刻は修正前の時刻を残し、消した打刻は無効にする。記録は消さない） */
 export async function replaceDayPunches(actorId: number, staffId: number, date: string, items: { id?: number | null; kind: PunchKind; minute: number }[], reason: string) {
-  const before = (await sql<{ id: string | number; kind: PunchKind; minute: number }[]>`
-    select id, kind, minute from punches where staff_id = ${staffId} and work_date = ${date} and not voided order by minute, id`).map((p) => ({ ...p, id: Number(p.id) }));
+  let before: { id: number; kind: PunchKind; minute: number }[] = [];
   await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${LOCK.punch}, ${staffId})`;
+    // 順番が来てから、今の打刻を読む（直している間にスタッフが打刻しても食い違わないように）
+    before = (await tx<{ id: string | number; kind: PunchKind; minute: number }[]>`
+      select id, kind, minute from punches where staff_id = ${staffId} and work_date = ${date} and not voided order by minute, id`).map((p) => ({ ...p, id: Number(p.id) }));
     const [st] = await tx<{ store_id: number | null }[]>`select store_id from staff where id = ${staffId}`;
     const keep = new Set(items.filter((i) => i.id).map((i) => Number(i.id)));
     for (const p of before) {

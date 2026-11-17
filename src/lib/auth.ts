@@ -41,19 +41,28 @@ export async function verifyPin(staffId: number, pin: string): Promise<{ ok: tru
     const m = Math.ceil((s.locked_until.getTime() - Date.now()) / 60000);
     return { ok: false, error: `パスワードを${MAX_FAILS}回間違えたため、あと${m}分ほど使えません。急ぐ場合は店長にパスワードを戻してもらってください。` };
   }
+  // 確かめる前に回数を数える（同時にたくさん送られても、ロックまでに試せるのは決まった回数だけ）
+  const [t] = await sql<{ n: number }[]>`update staff set failed_attempts = failed_attempts + 1
+    where id = ${staffId} and (locked_until is null or locked_until <= now()) returning failed_attempts as n`;
+  const lockNow = async () => {
+    await sql`update staff set failed_attempts = 0, locked_until = ${new Date(Date.now() + LOCK_MIN * 60000)}
+      where id = ${staffId} and (locked_until is null or locked_until <= now())`;
+    await audit(staffId, 'pin_locked', {});
+  };
+  if (!t || t.n > MAX_FAILS) {
+    if (t) await lockNow();
+    return { ok: false, error: `パスワードを${MAX_FAILS}回間違えたため、しばらく使えません。急ぐ場合は店長にパスワードを戻してもらってください。` };
+  }
   const ok = validPin(pin) && (await bcrypt.compare(pin, s.pin_hash));
   if (!ok) {
-    const fails = s.failed_attempts + 1;
-    const lock = fails >= MAX_FAILS;
-    await sql`update staff set failed_attempts = ${lock ? 0 : fails},
-      locked_until = ${lock ? new Date(Date.now() + LOCK_MIN * 60000) : null} where id = ${staffId}`;
-    if (lock) await audit(staffId, 'pin_locked', {});
+    const lock = t.n >= MAX_FAILS;
+    if (lock) await lockNow();
     return {
       ok: false,
-      error: lock ? `パスワードを${MAX_FAILS}回間違えたため、${LOCK_MIN}分間ロックしました。` : `パスワードが違います（あと${MAX_FAILS - fails}回間違えると${LOCK_MIN}分ロック）`,
+      error: lock ? `パスワードを${MAX_FAILS}回間違えたため、${LOCK_MIN}分間ロックしました。` : `パスワードが違います（あと${MAX_FAILS - t.n}回間違えると${LOCK_MIN}分ロック）`,
     };
   }
-  if (s.failed_attempts || s.locked_until) await sql`update staff set failed_attempts = 0, locked_until = null where id = ${staffId}`;
+  await sql`update staff set failed_attempts = 0, locked_until = null where id = ${staffId}`;
   return { ok: true, mustChange: s.pin_must_change };
 }
 

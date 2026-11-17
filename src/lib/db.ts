@@ -30,7 +30,8 @@ function create() {
   const local = /localhost|127\.0\.0\.1/.test(url);
   const st: Stats = { n: 0, closing: false, sent: 0, born: Date.now() };
   const s = postgres(url, {
-    max: local ? 1 : 5, // 1画面で並べて送る問い合わせを、待たせずに流せる数
+    // 1画面で並べて送る問い合わせを、待たせずに流せる数（DB_POOL_MAX は手元の試験用。手元の簡易データベースは1本しか受けない）
+    max: Number(process.env.DB_POOL_MAX) || (local ? 1 : 5),
     idle_timeout: 20,
     connect_timeout: 8, // つながらないときは待ち続けずにエラーにする
     max_lifetime: 60 * 5,
