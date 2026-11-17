@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { saveHopesAction } from '@/app/actions';
 import { useToast } from '@/components/Toast';
 import { call } from '@/lib/call';
-import { PERIODS, periodParts, periodsOf, periodsLabel } from '@/lib/periods';
+import { PERIODS, periodParts, periodsOf } from '@/lib/periods';
 import type { Part } from '@/lib/shift-parts';
 
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -19,7 +19,6 @@ const fromPeriods = (ns: number[]): Hope => {
   return ps.length ? { start: ps[0][0], end: ps[ps.length - 1][1], periods: [...ns].sort((a, b) => a - b) } : { start: PERIODS[0].s, end: PERIODS[0].e, periods: [] };
 };
 const minutes = (v: Hope) => (v.periods ? periodParts(v.periods).reduce((a, [s, e]) => a + e - s, 0) : v.end - v.start);
-const label = (v: Hope) => (v.periods ? (v.periods.length ? periodsLabel(v.periods) : 'コマ未選択') : `${hm(v.start)}〜${hm(v.end)}`);
 const isBad = (v: Hope) => (v.periods ? v.periods.length === 0 : v.end <= v.start);
 
 export function HopeForm({ year, month, initial, submitted }: { year: number; month: number; initial: { date: string; start: number; end: number; parts: Part[] | null }[]; submitted: boolean }) {
@@ -94,18 +93,15 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
     toast(r.ok ? r.message ?? '保存しました' : r.error);
     if (r.ok) { setDirty(false); router.refresh(); }
   });
-  const weekdays = (v: Hope) => { for (let d = 1; d <= nd; d++) { const w = new Date(year, month - 1, d).getDay(); if (w > 0 && w < 6) set(key(d), v); } };
 
   return (
     <>
-      <div className="card" style={{ marginBottom: 12, display: 'grid', gap: 8 }}>
-        <b>まとめて入力</b>
-        <button className="btn" onClick={() => weekdays(last)}>平日すべてに {label(last)}</button>
-        <button className="btn" onClick={() => { setHopes({}); setDirty(true); }}>すべて消す</button>
+      <div className="hope-tools">
+        <p className="sub" style={{ margin: 0 }}>
+          「コマで選ぶ」は、授業の空いているコマ（1限 8:45〜10:15 ／ 2限 10:30〜12:00 ／ 3限 13:15〜14:45 ／ 4限 15:00〜16:30 ／ 5限 16:45〜18:15）を押して選びます。コマとコマの間の時間は勤務に入りません。
+        </p>
+        {list.length > 0 && <button type="button" className="btn ghost" onClick={() => { setHopes({}); setDirty(true); }}>すべて消す</button>}
       </div>
-      <p className="sub" style={{ margin: '0 0 8px' }}>
-        「コマで選ぶ」は、授業の空いているコマ（1限 8:45〜10:15 ／ 2限 10:30〜12:00 ／ 3限 13:15〜14:45 ／ 4限 15:00〜16:30 ／ 5限 16:45〜18:15）を押して選びます。コマとコマの間の時間は勤務に入りません。
-      </p>
       <div className="hope-list">
         {Array.from({ length: nd }, (_, i) => i + 1).map((d) => {
           const k = key(d), v = hopes[k], w = new Date(year, month - 1, d).getDay();
