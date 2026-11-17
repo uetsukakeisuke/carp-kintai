@@ -101,7 +101,6 @@ export function HopeForm({ year, month, initial, submitted }: { year: number; mo
       <div className="card" style={{ marginBottom: 12, display: 'grid', gap: 8 }}>
         <b>まとめて入力</b>
         <button className="btn" onClick={() => weekdays(last)}>平日すべてに {label(last)}</button>
-        <button className="btn" onClick={() => weekdays(fromPeriods(lastP))}>平日すべてに {periodsLabel(lastP)}（授業のコマ）</button>
         <button className="btn" onClick={() => { setHopes({}); setDirty(true); }}>すべて消す</button>
       </div>
       <p className="sub" style={{ margin: '0 0 8px' }}>
