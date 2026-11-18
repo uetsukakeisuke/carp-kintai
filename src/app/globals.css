@@ -1114,3 +1114,32 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 
 .cr-head{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
 .cr-head .btn{flex:none;white-space:nowrap}
+
+/* シフトの枠（店長）・スタッフによるシフトの自由変更 */
+.slot-form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; align-items: center; font-size: 13px }
+.slot-form > label { color: var(--muted) }
+.slot-form .chips { flex-wrap: wrap }
+.btn.ghost.on { background: var(--accent); color: #fff }
+.slot-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; max-width: 520px }
+.slc-h { text-align: center; font-size: 12px; color: var(--muted); padding: 2px 0 }
+.slc-h.sun, .slc-d.sun b { color: var(--sun) } .slc-h.sat, .slc-d.sat b { color: var(--sat) }
+.slc-d { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 46px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; padding: 4px 0 }
+.slc-d small { font-size: 10.5px; color: var(--muted) }
+.slc-d.on { background: var(--accent); border-color: var(--accent); }
+.slc-d.on b, .slc-d.on small { color: #fff }
+.slc-d:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.notices { margin-bottom: 12px; border-color: var(--ok); background: var(--ok-soft) }
+.nt-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line) }
+.nt-row:first-of-type { border-top: 0 }
+.nt-main { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0 }
+.nt-act { display: flex; gap: 8px; align-items: center; margin-left: auto }
+.nt-new { font-size: 10.5px; font-weight: 700; color: #fff; background: var(--bad); border-radius: 99px; padding: 1px 7px; letter-spacing: .04em }
+.dslots { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }
+.dslot { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 0 }
+.dslot-n { min-width: 0 } .dslot-c { margin-left: auto; color: var(--ok); font-weight: 600 }
+.dslot.full .dslot-c { color: var(--muted) }
+.dslot.me .dslot-n b { color: var(--accent) }
+.mse-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px }
+.mse-btns .btn { min-height: 32px; padding: 0 12px; font-size: 13px }
+.mse-box { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); text-align: left; font-family: var(--f-body) }
+.mse-box .actions { margin-top: 2px }

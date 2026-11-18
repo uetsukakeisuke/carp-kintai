@@ -17,6 +17,7 @@ export const STAFF_NAV: NavItem[] = [
 export const MANAGE_NAV: NavItem[] = [
   { href: '/manage/shifts', label: 'シフト', icon: '▦', pages: [
     { href: '/manage/shifts', label: 'シフト作成' },
+    { href: '/manage/slots', label: 'シフト枠' },
     { href: '/manage/hopes', label: '希望の提出状況' },
     { href: '/manage/forecast', label: '作業量の予測' },
   ] },

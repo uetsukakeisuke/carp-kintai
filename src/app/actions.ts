@@ -18,6 +18,7 @@ import { createApiKey, revokeApiKey, isScope } from '@/lib/apikeys';
 import { autoDraft, undoAutoDraft, saveForecastParams } from '@/lib/forecast-data';
 import { readParams, type Window as DraftWindow, type DraftDay } from '@/lib/forecast';
 import { addTask, cleanTask, deleteTask, isDate as isDay, moveTasks, setTaskDone, updateTask, type TaskInput } from '@/lib/tasks';
+import { createSlots, updateSlot, deleteSlots, moveMyShift, slotsReady, markNoticesSeen, NEED_SLOTS_SQL } from '@/lib/slots';
 import { cleanFooter, cleanItem, cleanTravel, isYm } from '@/lib/expenses';
 import { addItem, deleteItem, deleteTravel, rotateExpenseSecret, saveFooter, saveTravel, updateItem } from '@/lib/expenses-data';
 
@@ -176,6 +177,77 @@ export async function publishAction(storeId: number, year: number, month: number
   revalidatePath('/manage/shifts');
   return { ok: true, message: `${month}月のシフトを公開しました。スタッフ全員が見られます` };
 }
+// ---------- シフトの枠（店長）と、スタッフによるシフトの自由変更 ----------
+const cleanLabel = (s: unknown) => String(s ?? '').replace(/[\s　]+/g, ' ').trim().slice(0, 20);
+function slotInput(start: unknown, end: unknown, capacity: unknown): string | null {
+  const s = Number(start), e = Number(end), c = Number(capacity);
+  if (!isMin(s) || !isMin(e) || e <= s) return '時間を確認してください（終わりは始まりより後）';
+  if (!Number.isInteger(c) || c < 1 || c > 99) return '人数は1〜99人で入れてください';
+  return null;
+}
+export async function createSlotsAction(storeId: number, dates: string[], start: number, end: number, capacity: number, label: string): Promise<Result> {
+  const u = await requireManager();
+  if (!(await slotsReady())) return { ok: false, error: NEED_SLOTS_SQL };
+  const err = slotInput(start, end, capacity); if (err) return { ok: false, error: err };
+  const ds = Array.isArray(dates) ? [...new Set(dates.filter(isDate))] : [];
+  if (!ds.length) return { ok: false, error: '枠を作る日を選んでください' };
+  if (ds.length > 62) return { ok: false, error: '一度に作れるのは62日分までです' };
+  if (!(await listStores()).some((s) => s.id === Number(storeId))) return { ok: false, error: '店舗が見つかりません' };
+  const n = await createSlots(u.id, Number(storeId), ds, Number(start), Number(end), Number(capacity), cleanLabel(label));
+  revalidatePath('/manage/slots'); revalidatePath('/me/shifts');
+  return { ok: true, message: `${n}日分の枠を作りました` };
+}
+export async function updateSlotAction(id: number, start: number, end: number, capacity: number, label: string): Promise<Result> {
+  const u = await requireManager();
+  if (!(await slotsReady())) return { ok: false, error: NEED_SLOTS_SQL };
+  const err = slotInput(start, end, capacity); if (err) return { ok: false, error: err };
+  const ok = await updateSlot(u.id, Number(id), { start: Number(start), end: Number(end), capacity: Number(capacity), label: cleanLabel(label) });
+  revalidatePath('/manage/slots'); revalidatePath('/me/shifts');
+  return ok ? { ok: true, message: '枠を直しました' } : { ok: false, error: 'この枠は見つかりません。画面を開き直してください' };
+}
+export async function deleteSlotsAction(ids: number[]): Promise<Result> {
+  const u = await requireManager();
+  if (!(await slotsReady())) return { ok: false, error: NEED_SLOTS_SQL };
+  const xs = Array.isArray(ids) ? ids.map(Number).filter((x) => Number.isInteger(x) && x > 0) : [];
+  if (!xs.length) return { ok: false, error: '消す枠を選んでください' };
+  const n = await deleteSlots(u.id, xs);
+  revalidatePath('/manage/slots'); revalidatePath('/me/shifts');
+  return { ok: true, message: `${n}件の枠を消しました（入っている人のシフトはそのままです）` };
+}
+async function afterSelfMove(r: { ok: true; message: string } | { ok: false; error: string }): Promise<Result> {
+  if (r.ok) { revalidatePath('/me/shifts'); revalidatePath('/me/calendar'); revalidatePath('/manage/shifts'); revalidatePath('/manage/slots'); }
+  return r;
+}
+/** 「空きが出ました」を見た（シフト表のタブの数字を消す） */
+export async function markNoticesSeenAction(): Promise<Result> {
+  const u = await requireUser();
+  await markNoticesSeen(u.id);
+  return { ok: true };
+}
+/** 空きのある枠に入る（枠の時間で入る） */
+export async function selfAddShiftAction(slotId: number): Promise<Result> {
+  const u = await requireUser();
+  if (!(await slotsReady())) return { ok: false, error: NEED_SLOTS_SQL };
+  const [s] = await sql<{ store_id: number; work_date: string; start_min: number; end_min: number }[]>`select store_id, work_date, start_min, end_min from shift_slots where id = ${Number(slotId)}`;
+  if (!s) return { ok: false, error: 'この枠はなくなりました。画面を開き直してください' };
+  if (s.store_id !== u.store_id) return { ok: false, error: 'ほかの店舗の枠には入れません' };
+  return afterSelfMove(await moveMyShift(u.id, s.store_id, s.work_date, { start: s.start_min, end: s.end_min }, 'add'));
+}
+/** 自分のシフトの時間を変える（午前 → 午後の向きだけ） */
+export async function selfChangeShiftAction(date: string, start: number, end: number): Promise<Result> {
+  const u = await requireUser();
+  if (!isDate(date) || !isMin(start) || !isMin(end) || end <= start) return { ok: false, error: '時間を確認してください（終わりは始まりより後）' };
+  if (!u.store_id) return { ok: false, error: '店舗が決まっていません。店長に連絡してください' };
+  return afterSelfMove(await moveMyShift(u.id, u.store_id, date, { start, end }, 'change'));
+}
+/** 自分のシフトをやめる（空きが出たら全員にお知らせ） */
+export async function selfDeleteShiftAction(date: string): Promise<Result> {
+  const u = await requireUser();
+  if (!isDate(date)) return { ok: false, error: '日付が正しくありません' };
+  if (!u.store_id) return { ok: false, error: '店舗が決まっていません。店長に連絡してください' };
+  return afterSelfMove(await moveMyShift(u.id, u.store_id, date, null, 'delete'));
+}
+
 // ---------- シフトの取り込み（スマレジの Excel・CSV） ----------
 export type ShiftImportPreviewReply = ({ ok: true } & ImportPreview) | { ok: false; error: string };
 export async function previewShiftImportAction(form: FormData): Promise<ShiftImportPreviewReply> {
