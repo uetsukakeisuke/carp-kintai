@@ -2,7 +2,7 @@ import { requireManager } from '@/lib/auth';
 import Link from 'next/link';
 import { listStores, listStaff, punchesBetween, publishedShifts, listCorrections, ratesFor, whoIsWorking } from '@/lib/data';
 import { NowWorking } from '@/components/NowWorking';
-import { summarizeDay, laborCost, wageAt, planCost } from '@/lib/calc';
+import { summarizeDay, laborCost, wageAt, planCost, type PunchKind } from '@/lib/calc';
 import { jstParts, addDays, dateLabel, hm, yen, WD, weekday } from '@/lib/time';
 import { PunchLog, STATE_LABEL, PUNCH_LABEL } from '@/components/PunchLog';
 import { ActionButton } from '@/components/ActionButton';
@@ -53,23 +53,34 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const faceChecks = weekPunches.filter((p) => p.face === 'mismatch' || p.face === 'skipped' || p.face === 'reregistered')
     .map((p) => ({ name: staff.find((s) => s.id === p.staff_id)?.name ?? '', date: p.work_date, face: p.face }))
     .filter((x, i, a) => x.name && a.findIndex((y) => y.name === x.name && y.date === x.date) === i);
+  // 同じ人・同じ日の申請は1つにまとめる（出勤・休憩・退勤をまとめて申請できるため）
+  const ORDER: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
+  const groups: { key: string; name: string; date: string; ids: number[]; items: typeof pending; reasons: string[] }[] = [];
+  for (const q of [...pending].reverse()) {
+    const key = `${q.staff_id}|${q.work_date}`;
+    let x = groups.find((y) => y.key === key);
+    if (!x) groups.push((x = { key, name: q.staff_name, date: q.work_date, ids: [], items: [], reasons: [] }));
+    x.ids.push(Number(q.id)); x.items.push(q);
+    if (!x.reasons.includes(q.reason)) x.reasons.push(q.reason);
+  }
+  for (const x of groups) x.items.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
   const totalCost = rows.reduce((a, r) => a + r.cost, 0), totalPlan = rows.reduce((a, r) => a + r.plan, 0);
   const strip = Array.from({ length: 14 }, (_, i) => addDays(now.date, i - 13));
 
   return (
     <>
-      {pending.length > 0 && (
+      {groups.length > 0 && (
         <>
-          <h2 className="sec" style={{ marginTop: 0 }}>打刻修正の申請（{pending.length}件）</h2>
+          <h2 className="sec" style={{ marginTop: 0 }}>打刻修正の申請（{groups.length}件）</h2>
           <div className="grid-wrap" style={{ marginBottom: 16 }}><table className="tbl stack"><tbody>
-            {pending.map((q) => (
-              <tr key={q.id}>
-                <td className="head"><b>{q.staff_name}</b><span className="sub">{dateLabel(q.work_date)}</span></td>
-                <td data-label="修正内容"><span><b>{PUNCH_LABEL[q.kind]}</b> を <span className="num">{hm(q.minute)}</span> に</span></td>
-                <td data-label="理由" className="wrap"><span className="sub" style={{ marginLeft: 'auto' }}>{q.reason}</span></td>
+            {groups.map((g) => (
+              <tr key={g.key}>
+                <td className="head"><b>{g.name}</b><span className="sub">{dateLabel(g.date)}</span></td>
+                <td data-label="修正内容"><span className="cr-list">{g.items.map((q) => <span key={q.id} className="nchip"><b>{PUNCH_LABEL[q.kind]}</b> <span className="num">{hm(q.minute)}</span></span>)}</span></td>
+                <td data-label="理由" className="wrap"><span className="sub" style={{ marginLeft: 'auto' }}>{g.reasons.join(' ／ ')}</span></td>
                 <td className="acts" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <ActionButton action={decideCorrectionAction.bind(null, q.id, false)}>却下</ActionButton>{' '}
-                  <ActionButton className="btn primary" action={decideCorrectionAction.bind(null, q.id, true)}>承認する</ActionButton>
+                  <ActionButton action={decideCorrectionAction.bind(null, g.ids, false)}>却下</ActionButton>{' '}
+                  <ActionButton className="btn primary" action={decideCorrectionAction.bind(null, g.ids, true)}>{g.ids.length > 1 ? `${g.ids.length}件まとめて承認` : '承認する'}</ActionButton>
                 </td>
               </tr>
             ))}

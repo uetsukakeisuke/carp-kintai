@@ -6,7 +6,7 @@ import {
   hashPin, INITIAL_PIN, isManager, punchCodeOk, currentUser, requireAdmin,
 } from '@/lib/auth';
 import { sql, audit } from '@/lib/db';
-import { recordPunch, resolveWorkDay, decideCorrection, upsertShift, publishMonth, minWages, replaceDayPunches, listStores, hopePartsReady, LOCK } from '@/lib/data';
+import { recordPunch, resolveWorkDay, decideCorrections, requestCorrections, upsertShift, publishMonth, minWages, replaceDayPunches, listStores, hopePartsReady, LOCK } from '@/lib/data';
 import { minWageAt, wageAt, canPunch, type PunchKind } from '@/lib/calc';
 import { cleanParts, type Part } from '@/lib/shift-parts';
 import { previewImport, applyImport, MAX_FILE as MAX_IMPORT_FILE, type ImportPreview } from '@/lib/shift-import-data';
@@ -99,14 +99,23 @@ export async function terminalPunchAction(staffId: number, code: string, kind: P
   return r.ok ? { ok: true, message: punchMessage(kind, r.minute) + faceNote(f) } : r;
 }
 
-export async function requestCorrectionAction(date: string, kind: PunchKind, minute: number, reason: string): Promise<Result> {
+/** 打刻の修正を申請する。出勤・休憩開始・休憩終了・退勤を1回でまとめて申請できる */
+export async function requestCorrectionAction(date: string, rawItems: { kind: PunchKind; minute: number }[], reason: string): Promise<Result> {
   const u = await requireUser();
-  if (!isDate(date) || !KINDS.includes(kind) || !isMin(minute)) return { ok: false, error: '入力内容を確認してください' };
+  if (!isDate(date) || !Array.isArray(rawItems)) return { ok: false, error: '入力内容を確認してください' };
+  const items = rawItems.map((x) => ({ kind: x?.kind, minute: Number(x?.minute) }));
+  if (!items.length) return { ok: false, error: '直す打刻を1つ以上選んでください' };
+  if (items.length > KINDS.length || items.some((x) => !KINDS.includes(x.kind) || !isMin(x.minute))) return { ok: false, error: '入力内容を確認してください' };
+  if (new Set(items.map((x) => x.kind)).size !== items.length) return { ok: false, error: '同じ打刻が2つ含まれています' };
+  // 申請する時刻どうしの順番（出勤 → 休憩開始 → 休憩終了 → 退勤）
+  const ord = [...items].sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind));
+  for (let i = 1; i < ord.length; i++) if (ord[i].minute <= ord[i - 1].minute) return { ok: false, error: `${PUNCH_LABEL[ord[i].kind]}は${PUNCH_LABEL[ord[i - 1].kind]}より後の時刻にしてください` };
   if (!String(reason).trim()) return { ok: false, error: '理由を入力してください' };
   if (date > jstParts().date) return { ok: false, error: '未来の日付は申請できません' };
-  await sql`insert into correction_requests (staff_id, work_date, kind, minute, reason) values (${u.id}, ${date}, ${kind}, ${minute}, ${String(reason).slice(0, 200)})`;
+  await requestCorrections(u.id, date, ord, String(reason).trim().slice(0, 200));
   revalidatePath('/me');
-  return { ok: true, message: '修正を申請しました。店長の承認待ちです' };
+  revalidatePath('/manage/attendance');
+  return { ok: true, message: `${ord.map((x) => PUNCH_LABEL[x.kind]).join('・')}の修正を申請しました。店長の承認待ちです` };
 }
 
 // ---------- シフト希望 ----------
@@ -203,11 +212,14 @@ export async function setHopePeriodAction(storeId: number, year: number, month: 
 }
 
 // ---------- 勤怠（店長） ----------
-export async function decideCorrectionAction(id: number, approve: boolean): Promise<Result> {
+/** 修正申請を承認・却下する。まとめて出された申請は ids をまとめて渡す */
+export async function decideCorrectionAction(ids: number | number[], approve: boolean): Promise<Result> {
   const u = await requireManager();
-  const done = await decideCorrection(u.id, Number(id), Boolean(approve));
+  const list = (Array.isArray(ids) ? ids : [ids]).map(Number).filter((x) => Number.isInteger(x) && x > 0).slice(0, 20);
+  if (!list.length) return { ok: false, error: '申請が見つかりません' };
+  const n = await decideCorrections(u.id, list, Boolean(approve));
   revalidatePath('/manage/attendance');
-  if (!done) return { ok: true, message: 'この申請は、ほかの人がすでに処理しています' };
+  if (!n) return { ok: true, message: 'この申請は、ほかの人がすでに処理しています' };
   return { ok: true, message: approve ? '承認して勤務記録を直しました' : '申請を却下しました' };
 }
 

@@ -75,6 +75,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const ps = punches.filter((p) => p.work_date === sel);
   const s = summarizeDay(ps, { isPast: sel < now.date, now: sel === now.date ? now.minute : null, plan: sh ? { start: sh.start_min, end: sh.end_min } : null });
   const myReqs = reqs.filter((r) => r.work_date === sel);
+  const KIND_ORDER: PunchKind[] = ['in', 'break_start', 'break_end', 'out'];
   // 今日からあとの日は、受発注の入荷・出荷の予定も出す
   const showLedger = !!(ledger && sel >= now.date);
   const selTasks = dayTasks(sel);
@@ -110,12 +111,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           : `${hm(sh.start_min)}〜${hm(sh.end_min)}`) : 'なし'}</span></div>
         <div className="cdrow"><span className="sub">打刻</span><span><PunchLog punches={ps} /></span></div>
         {s.firstIn !== null && <div className="cdrow"><span className="sub">実働</span><span className="num">{hoursLabel(s.workMin)}{s.breakMin ? `（休憩 ${s.breakMin}分）` : ''}</span></div>}
-        {myReqs.map((q) => (
-          <div key={q.id} className={`reqst q-${q.status}`}>{PUNCH_LABEL[q.kind]}を {hm(q.minute)} に修正 ・ {q.status === 'pending' ? '承認待ち' : q.status === 'approved' ? '承認されました' : '却下されました'}</div>
-        ))}
+        {(['pending', 'approved', 'rejected'] as const).map((st) => {
+          const qs = myReqs.filter((q) => q.status === st).sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+          return qs.length ? <div key={st} className={`reqst q-${st}`}>{qs.map((q) => `${PUNCH_LABEL[q.kind]} ${hm(q.minute)}`).join('・')} に修正 ・ {st === 'pending' ? '承認待ち' : st === 'approved' ? '承認されました' : '却下されました'}</div> : null;
+        })}
         {sel <= now.date && (s.firstIn !== null || sh) && (
           <CorrectionForm date={sel} current={(['in', 'break_start', 'break_end', 'out'] as PunchKind[]).map((k) => ({ kind: k, minute: ps.find((p) => p.kind === k)?.minute ?? null }))}
-            suggested={s.state === 'missing' ? 'out' : s.state === 'absent' ? 'in' : 'in'} planStart={sh?.start_min ?? null} planEnd={sh?.end_min ?? null} />
+            suggested={s.state === 'missing' ? 'out' : s.firstIn === null && sel < now.date ? ['in', 'out'] : 'in'} planStart={sh?.start_min ?? null} planEnd={sh?.end_min ?? null} />
         )}
         <div className="cdday">
           <div className="brief-h"><b>この日の予定</b></div>

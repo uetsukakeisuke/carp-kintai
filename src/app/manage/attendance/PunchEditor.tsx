@@ -63,6 +63,7 @@ function Editor({ staffId, name, date, dateText, punches, plan, requests = [], o
                 <button type="button" className="btn sm" onClick={() => useRequest(q)}>この時刻を入れる</button>
               </div>
             ))}
+            {requests.length > 1 && <button type="button" className="btn sm" style={{ justifySelf: 'start' }} onClick={() => requests.forEach((q) => useRequest(q))}>申請の時刻をすべて入れる</button>}
             <p className="sub" style={{ margin: 0 }}>申請と同じ時刻で保存すると、申請は「承認」になります。</p>
           </div>
         )}

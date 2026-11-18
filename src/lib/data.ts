@@ -98,13 +98,26 @@ export async function listCorrections(opts: { status?: string; staffId?: number 
     order by c.created_at desc limit 200`;
 }
 
-/** 申請を承認・却下する。ほかの人が先に処理していたときは false（何もしない） */
-export async function decideCorrection(actorId: number, id: number, approve: boolean): Promise<boolean> {
+/**
+ * 1回の申請で、出勤・休憩・退勤をまとめて申請する（打刻ごとに1行ずつ入れる）。
+ * 同じ日・同じ種類のまだ承認されていない申請があれば、新しい申請で置き換える。
+ */
+export async function requestCorrections(staffId: number, date: string, items: { kind: PunchKind; minute: number }[], reason: string): Promise<void> {
+  await sql.begin(async (tx) => {
+    await tx`delete from correction_requests where staff_id = ${staffId} and work_date = ${date} and status = 'pending' and kind = any(${items.map((x) => x.kind)}::text[])`;
+    await tx`insert into correction_requests (staff_id, work_date, kind, minute, reason)
+      select ${staffId}, ${date}, u.kind, u.minute, ${reason} from unnest(${items.map((x) => x.kind)}::text[], ${items.map((x) => x.minute)}::int[]) as u(kind, minute)`;
+  });
+}
+
+/** 申請を承認・却下する（まとめて出された申請は ids をまとめて渡す）。ほかの人が先に処理していたものは何もしない。処理した件数を返す */
+export async function decideCorrections(actorId: number, ids: number[], approve: boolean): Promise<number> {
   const done = await sql.begin(async (tx) => {
-    const [c] = await tx<CorrectionRow[]>`select * from correction_requests where id = ${id} and status = 'pending' for update`;
-    if (!c) return false;
-    await tx`select pg_advisory_xact_lock(${LOCK.punch}, ${c.staff_id})`;
-    if (approve) {
+    const cs = await tx<CorrectionRow[]>`select * from correction_requests where id = any(${ids}::bigint[]) and status = 'pending' order by id for update`;
+    if (!cs.length) return [] as number[];
+    for (const sid of [...new Set(cs.map((c) => c.staff_id))].sort((a, b) => a - b)) await tx`select pg_advisory_xact_lock(${LOCK.punch}, ${sid})`;
+    for (const c of cs) {
+      if (!approve) continue;
       // 同じ種類の打刻がその日にあれば最初の1件を直す（修正前の時刻は残す）。なければ追加する。
       const [p] = await tx<{ id: number; minute: number; original_minute: number | null }[]>`
         select id, minute, original_minute from punches where staff_id = ${c.staff_id} and work_date = ${c.work_date} and kind = ${c.kind} and not voided
@@ -117,12 +130,17 @@ export async function decideCorrection(actorId: number, id: number, approve: boo
           values (${c.staff_id}, ${st?.store_id ?? null}, ${c.work_date}, ${c.kind}, ${c.minute}, 'correction', ${c.reason})`;
       }
     }
-    await tx`update correction_requests set status = ${approve ? 'approved' : 'rejected'}, decided_by = ${actorId}, decided_at = now() where id = ${id}`;
-    return true;
+    const got = cs.map((c) => Number(c.id));
+    await tx`update correction_requests set status = ${approve ? 'approved' : 'rejected'}, decided_by = ${actorId}, decided_at = now() where id = any(${got}::bigint[])`;
+    return got;
   });
-  if (!done) return false;
-  await audit(actorId, approve ? 'correction_approved' : 'correction_rejected', { id });
-  return true;
+  for (const id of done) await audit(actorId, approve ? 'correction_approved' : 'correction_rejected', { id });
+  return done.length;
+}
+
+/** 1件だけ承認・却下する。ほかの人が先に処理していたときは false */
+export async function decideCorrection(actorId: number, id: number, approve: boolean): Promise<boolean> {
+  return (await decideCorrections(actorId, [id], approve)) > 0;
 }
 
 // ---------------- シフト ----------------
