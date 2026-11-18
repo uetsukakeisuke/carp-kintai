@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { createSlotsAction, updateSlotAction, deleteSlotsAction } from '@/app/actions';
 import { useToast } from '@/components/Toast';
 import { call, timedOut } from '@/lib/call';
+import { LedgerBrief } from '@/components/LedgerBrief';
+import type { DayBrief } from '@/lib/brief';
 
 const hm = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`;
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -14,6 +16,7 @@ const PRESETS = [
   { name: '1日', start: 540, end: 1080 },
 ];
 type R = { ok: true; message?: string } | { ok: false; error: string };
+export type DayInfo = { brief: DayBrief | null; tasks: { title: string; at: number | null; who: string | null; note: boolean; done: boolean }[] };
 export type SlotRow = { id: number; date: string; start: number; end: number; capacity: number; label: string; filled: number; names: string[] };
 
 function TimeSel({ value, onChange, label, min }: { value: number; onChange: (v: number) => void; label: string; min?: number }) {
@@ -22,7 +25,7 @@ function TimeSel({ value, onChange, label, min }: { value: number; onChange: (v:
   </select>;
 }
 
-export function SlotBoard({ storeId, year, month, slots }: { storeId: number; year: number; month: number; slots: SlotRow[] }) {
+export function SlotBoard({ storeId, year, month, slots, info, ledgerAt, today }: { storeId: number; year: number; month: number; slots: SlotRow[]; info: Record<string, DayInfo>; ledgerAt: string | null; today: string }) {
   const nd = new Date(year, month, 0).getDate();
   const key = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   const wd = (d: number) => new Date(year, month - 1, d).getDay();
@@ -32,6 +35,7 @@ export function SlotBoard({ storeId, year, month, slots }: { storeId: number; ye
   const [cap, setCap] = useState(3);
   const [days, setDays] = useState<Set<string>>(new Set());
   const [edit, setEdit] = useState<SlotRow | null>(null);
+  const [look, setLook] = useState<string | null>(null); // 中身を見ている日（最後に押した日）
   const [pending, startT] = useTransition();
   const [toast] = useToast();
   const router = useRouter();
@@ -42,7 +46,7 @@ export function SlotBoard({ storeId, year, month, slots }: { storeId: number; ye
     if (!timedOut(r)) router.refresh();
   });
   const pick = (f: (d: number) => boolean) => setDays(new Set(Array.from({ length: nd }, (_, i) => i + 1).filter(f).map(key)));
-  const toggle = (k: string) => setDays((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const toggle = (k: string) => { setLook(k); setDays((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; }); };
   const byDay = useMemo(() => {
     const m = new Map<string, SlotRow[]>();
     for (const s of slots) m.set(s.date, [...(m.get(s.date) ?? []), s]);
@@ -77,12 +81,21 @@ export function SlotBoard({ storeId, year, month, slots }: { storeId: number; ye
           {WD.map((w, i) => <div key={w} className={`slc-h${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>)}
           {Array.from({ length: lead }, (_, i) => <div key={'b' + i} />)}
           {Array.from({ length: nd }, (_, i) => i + 1).map((d) => {
-            const k = key(d), on = days.has(k), n = byDay.get(k)?.length ?? 0;
-            return <button key={k} type="button" className={`slc-d${on ? ' on' : ''}${wd(d) === 0 ? ' sun' : wd(d) === 6 ? ' sat' : ''}`} aria-pressed={on} onClick={() => toggle(k)}>
-              <b>{d}</b>{n > 0 && <small>{n}枠</small>}
+            const k = key(d), on = days.has(k), n = byDay.get(k)?.length ?? 0, it = info[k], b = it?.brief;
+            const late = !!b && [...b.ins, ...b.outs].some((x) => x.late);
+            return <button key={k} type="button" className={`slc-d${on ? ' on' : ''}${look === k ? ' look' : ''}${wd(d) === 0 ? ' sun' : wd(d) === 6 ? ' sat' : ''}`} aria-pressed={on} onClick={() => toggle(k)}
+              title={[b ? `入荷${b.ins.length}件・出荷${b.outs.length}件${late ? '（遅れあり）' : ''}` : '', ...(it?.tasks ?? []).map((t) => t.title)].filter(Boolean).join('\n') || undefined}>
+              <b>{d}</b>
+              {b && <span className={`slc-lb${late ? ' late' : ''}`}>{b.ins.length > 0 && <i className="in">入{b.ins.length}</i>}{b.outs.length > 0 && <i className="out">出{b.outs.length}</i>}</span>}
+              {(it?.tasks.length ?? 0) > 0 && <span className="slc-tk">予定{it!.tasks.length}</span>}
+              {n > 0 && <small>{n}枠</small>}
             </button>;
           })}
         </div>
+        <p className="sub cal-legend" style={{ margin: '6px 0 0' }}>
+          <span><i className="clb-k in">入</i>入荷・</span><span><i className="clb-k out">出</i>出荷の件数（受発注台帳・今日以降）</span>・<span className="slc-tk">予定</span>予定表のやること。日を押すと、下に中身が出ます。
+        </p>
+        {look && <DayDetail date={look} info={info[look]} ledgerAt={ledgerAt} today={today} slots={byDay.get(look) ?? []} onClose={() => setLook(null)} />}
         <div className="actions">
           <button className="btn primary" disabled={pending || !days.size} onClick={() => run(() => createSlotsAction(storeId, [...days].sort(), start, end, cap, label), () => setDays(new Set()))}>
             {days.size ? `${days.size}日分に「${label || '枠'} ${hm(start)}〜${hm(end)}・${cap}人」を作る` : '日を選んでください'}
@@ -125,5 +138,37 @@ export function SlotBoard({ storeId, year, month, slots }: { storeId: number; ye
         </tbody></table></div>
       )}
     </>
+  );
+}
+
+/** 押した日の入荷・出荷とやること（枠を作るときの参考） */
+function DayDetail({ date, info, ledgerAt, today, slots, onClose }: { date: string; info?: DayInfo; ledgerAt: string | null; today: string; slots: SlotRow[]; onClose: () => void }) {
+  const [y, m, d] = date.split('-').map(Number);
+  const tasks = info?.tasks ?? [];
+  return (
+    <div className="slot-day">
+      <div className="row"><b>{m}/{d}({WD[new Date(y, m - 1, d).getDay()]}) の中身</b><span className="grow" /><button type="button" className="btn ghost" onClick={onClose}>閉じる</button></div>
+      {slots.length > 0 && <div className="sub">作ってある枠：{slots.map((s) => `${s.label ? s.label + ' ' : ''}${hm(s.start)}〜${hm(s.end)}（${s.filled}/${s.capacity}人）`).join('、')}</div>}
+      <div className="slot-day-g">
+        <div>
+          {!ledgerAt ? <p className="sub" style={{ margin: 0 }}>受発注台帳がまだ届いていないため、入荷・出荷は出せません。</p>
+            : date < today ? <p className="sub" style={{ margin: 0 }}>過ぎた日の入荷・出荷は出しません。</p>
+            : <LedgerBrief brief={info?.brief ?? null} date={date} receivedAt={new Date(ledgerAt)} />}
+        </div>
+        <div>
+          <div className="brief-h"><b>やること</b><span className="sub">予定表</span></div>
+          {!tasks.length ? <p className="sub" style={{ margin: 0 }}>予定表に書かれた予定はありません。</p> : (
+            <ul className="slot-tasks">
+              {tasks.map((t, i) => (
+                <li key={i} className={t.done ? 'done' : ''}>
+                  {t.at !== null && <span className="num">{hm(t.at)} </span>}<span>{t.title}</span>
+                  {(t.who || t.note || t.done) && <span className="sub">{[t.who && `${t.who}さん`, t.note && 'メモ', t.done && '済'].filter(Boolean).join('・')}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

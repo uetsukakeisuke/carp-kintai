@@ -5,7 +5,9 @@ import { listSlots, recentChanges, slotsReady } from '@/lib/slots';
 import { filled, inSlot } from '@/lib/slot-rules';
 import { jstParts, daysInMonth, ymd, dateLabel, hm } from '@/lib/time';
 import { sql } from '@/lib/db';
-import { SlotBoard } from './SlotBoard';
+import { SlotBoard, type DayInfo } from './SlotBoard';
+import { ledgerBrief } from '@/lib/brief-data';
+import { tasksOfStore } from '@/lib/tasks';
 
 export default async function SlotsPage({ searchParams }: { searchParams: Promise<{ ym?: string; store?: string }> }) {
   await requireManager();
@@ -17,10 +19,19 @@ export default async function SlotsPage({ searchParams }: { searchParams: Promis
   const ym = /^\d{4}-\d{2}$/.test(sp.ym ?? '') ? sp.ym! : now.slice(0, 7);
   const [y, m] = ym.split('-').map(Number);
   const from = ymd(y, m, 1), to = ymd(y, m, daysInMonth(y, m));
-  const [ready, slots, shifts, staff, changes, [period]] = await Promise.all([
+  const [ready, slots, shifts, staff, changes, [period], ledger, tasks] = await Promise.all([
     slotsReady(), listSlots(store.id, from, to), publishedShifts(from, to, { storeId: store.id }), listStaff({ storeId: store.id }), recentChanges(store.id, 60),
     sql<{ status: string }[]>`select status from shift_periods where store_id = ${store.id} and year = ${y} and month = ${m}`,
+    ledgerBrief(), tasksOfStore(store.id, from, to),
   ]);
+  // 日ごとの入荷・出荷（受発注台帳。今日以降）と予定表のやること（枠を作るときに見る）
+  const info: Record<string, DayInfo> = {};
+  for (let d = 1; d <= daysInMonth(y, m); d++) {
+    const k = ymd(y, m, d);
+    const b = k >= now ? ledger?.byDate.get(k) : undefined;
+    const ts = tasks.filter((t) => t.work_date === k).map((t) => ({ title: t.title, at: t.at_min, who: t.staff_name, note: t.kind === 'note', done: !!t.done_at }));
+    if ((b && (b.ins.length || b.outs.length)) || ts.length) info[k] = { brief: b && (b.ins.length || b.outs.length) ? b : null, tasks: ts };
+  }
   const name = (id: number) => staff.find((s) => s.id === id)?.name ?? '（他店舗）';
   const view = slots.map((s) => {
     const day = shifts.filter((r) => r.work_date === s.work_date);
@@ -51,7 +62,7 @@ export default async function SlotsPage({ searchParams }: { searchParams: Promis
             やめて空きが出ると、スタッフ全員のシフト表に「空きが出ました」と出ます。変更はすぐシフト（公開済み・下書きの両方）に入り、下の「スタッフによる変更」に残ります。
           </p>
           {(!period || period.status === 'draft') && <div className="banner warn"><span>{m}月のシフトはまだ公開されていません。公開するまで、スタッフは自分で変えられません（枠は先に作っておけます）。</span></div>}
-          <SlotBoard storeId={store.id} year={y} month={m} slots={view} />
+          <SlotBoard storeId={store.id} year={y} month={m} slots={view} info={info} ledgerAt={ledger ? ledger.at.toISOString() : null} today={now} />
         </>
       )}
       {ready && (

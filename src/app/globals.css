@@ -1143,3 +1143,18 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .mse-btns .btn { min-height: 32px; padding: 0 12px; font-size: 13px }
 .mse-box { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); text-align: left; font-family: var(--f-body) }
 .mse-box .actions { margin-top: 2px }
+.slc-d { min-height: 58px; gap: 2px }
+.slc-d.look { box-shadow: 0 0 0 2px var(--accent) }
+.slc-lb { display: flex; gap: 2px; line-height: 1 }
+.slc-lb i { font-style: normal; font-size: 9.5px; font-weight: 700; border-radius: 4px; padding: 2px 3px; white-space: nowrap }
+.slc-lb .in { background: var(--accent-soft); color: var(--accent) }
+.slc-lb .out { background: var(--ok-soft); color: var(--ok) }
+.slc-lb.late i { box-shadow: inset 0 0 0 1px var(--warn) }
+.slc-tk { font-size: 9.5px; font-weight: 700; color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 2px 3px; line-height: 1 }
+.slc-d.on .slc-lb i, .slc-d.on .slc-tk { background: rgba(255,255,255,.9) }
+.slot-day { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); display: grid; gap: 8px }
+.slot-day-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px }
+.slot-day-g > div { min-width: 0 }
+.slot-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px }
+.slot-tasks li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline }
+.slot-tasks li.done > span:not(.sub) { text-decoration: line-through; color: var(--muted) }
