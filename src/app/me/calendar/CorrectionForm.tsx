@@ -46,10 +46,15 @@ export function CorrectionForm({ date, current, suggested, planStart, planEnd }:
     ? `${hasK('break_start') ? '休憩終了' : '休憩開始'}の記録がありません。必要ならチェックを入れてください` : '';
   const same = picked.filter((k) => cur(k) === rows[k].minute);
 
-  if (!open) return <div><button className="btn" style={{ width: '100%' }} onClick={begin}>打刻の修正を申請</button>{node}</div>;
+  if (!open) return <div><button className="btn" style={{ width: '100%' }} onClick={begin}>打刻の修正を申請（出勤・休憩・退勤をまとめて）</button>{node}</div>;
   return (
     <div className="card cr-card">
-      <p className="sub" style={{ margin: 0 }}>直す打刻にチェックを入れて、正しい時刻を選んでください。出勤・休憩・退勤をまとめて1回で申請できます。</p>
+      <div className="cr-head">
+        <p className="sub" style={{ margin: 0 }}>直す打刻にチェックを入れて、正しい時刻を選んでください。出勤・休憩・退勤をまとめて1回で申請できます。</p>
+        <button type="button" className="btn ghost" onClick={() => { const all = picked.length < KINDS.length; setErr(''); setRows((x) => Object.fromEntries(KINDS.map((k) => [k, { ...x[k], on: all }])) as typeof x); }}>
+          {picked.length < KINDS.length ? '4つすべて直す' : 'チェックを外す'}
+        </button>
+      </div>
       <div className="cr-rows" role="group" aria-label="直す打刻">
         {KINDS.map((k) => {
           const c = cur(k), on = rows[k].on;

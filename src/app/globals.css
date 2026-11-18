@@ -1111,3 +1111,6 @@ h2.sec { font-size: 15.5px; margin: 20px 0 8px; display: flex; flex-wrap: wrap; 
 .cr-now { white-space: nowrap; font-size: 12px; text-align: right }
 @media (max-width: 360px) { .cr-row { grid-template-columns: auto minmax(0, 1fr) } .cr-now { text-align: left; grid-column: 1 / -1; grid-row: 2 } }
 .cr-list { display: flex; flex-wrap: wrap; gap: 4px }
+
+.cr-head{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+.cr-head .btn{flex:none;white-space:nowrap}
